@@ -1,15 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
+#include <sys/time.h>
 #include <stdbool.h>
 #include <pthread.h>
 
-int N;
+int N, T;
 int *A, *B;
 int *L[4], *R[4];
-int cantBar = (int)log2(T);
-pthread_barrier_t bar[cantBar];
+volatile bool check = true;
+//int cantBar = (int)log2(T);
+int cantBar;
+pthread_barrier_t* bar;
+pthread_barrier_t barFinal;
 
 //Para calcular tiempo
 double dwalltime(){
@@ -82,37 +85,56 @@ void* funcion(void *arg){
 	int b = 0;
 	
 	int inicio = id*parte;
-	int fin = inicio+parte;
+	int fin = inicio + parte;
 	
 	while(hilos > 1){
 		pthread_barrier_wait(&bar[b]);
 		parte = parte*2;
 		if(id < hilos/2) {
-			mergeSort(&A[id*parte], inicio, fin, id);
-			mergeSort(&B[id*parte], inicio, fin, id);
+			mergeSort(&A[id*parte], inicio, fin-1, id);
+			mergeSort(&B[id*parte], inicio, fin-1, id);
 		} else {
 			break;
 		}
 		hilos = hilos/2;
 		b++;
 	}
+	
+	pthread_barrier_wait(&barFinal);
+	
+	for(int i=inicio;i<fin;i++) {
+		// Los otros hilos saldrán del loop cuando check se haga falso
+		if(!check)
+			break;
+		if(A[i] != B[i]) {
+			// En teoría no hace falta un mutex, ya que la única modificación posible al check es pasarlo de true a false
+			check = false;
+			break;
+		}
+	}
+	
+	pthread_exit(NULL);
 }
 
 // "argc" es la cantidad de argumentos (en este caso 2)
 int main(int argc, char* argv[]){
 	N = atoi(argv[1]);
 	T = atoi(argv[2]);
+	cantBar = (int)log2(T);
 	int i;
-	bool check = true;
+	int div = 1;
+	//bool check = true;
 	double timetick;
-	
+
 	srand (time(NULL));
 	
+	bar = malloc(cantBar*sizeof(pthread_barrier_t));
 	for(int b=0;b<cantBar;b++){
 		pthread_barrier_init(&bar[b], NULL, T/div); // Inicialización de las barreras
 		div = div*2;
 	}
-	
+	pthread_barrier_init(&barFinal, NULL, T);
+
 	// Se reserva memoria para los arreglos
 	A = (int*)malloc(sizeof(int)*N);
 	B = (int*)malloc(sizeof(int)*N);
@@ -127,10 +149,18 @@ int main(int argc, char* argv[]){
 	pthread_t misThreads[T];
 	int threads_ids[T];
 
-	for(int i=0;i<N;i++){
+	for(int i=0;i<N;i++) {
 		A[i] = rand() % 999;
 		B[i] = rand() % 999;
 	}
+	
+	/*
+	// Arreglo predefinido para prueba
+	for(i=0;i<8;i++) {
+		A[i] = i;
+		B[i] = i;
+	}
+	*/
 	
 	timetick = dwalltime();
 	
@@ -142,8 +172,8 @@ int main(int argc, char* argv[]){
 		pthread_join(misThreads[id],NULL);
 	}
 	
-	mergeSort(A, 0, N-1);
-	mergeSort(B, 0, N-1);
+	//mergeSort(A, 0, N-1);
+	//mergeSort(B, 0, N-1);
 	
 	for(i=0;i<N;i++) {
 		if(A[i] != B[i]) {
@@ -163,12 +193,13 @@ int main(int argc, char* argv[]){
 	for(int b=0;b<cantBar;b++){
 		pthread_barrier_destroy(&bar[b]);
 	}
+	pthread_barrier_destroy(&barFinal);
 	
 	free(A);
 	free(B);
-	for(t=0;t<T;t++) {
-		free(L[t]);
-		free(R[t]);
+	for(i=0;i<T;i++) {
+		free(L[i]);
+		free(R[i]);
 	}
 	return 0;
 }
