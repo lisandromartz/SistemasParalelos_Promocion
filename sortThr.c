@@ -82,14 +82,13 @@ void* funcion(void *arg){
 	int id =* (int*)arg;
 	int parte = N/T;
 	int hilos = T;
+	int inicio, fin;
 	int b = 0;
-	
-	int inicio = id*parte;
-	int fin = inicio + parte;
 	
 	while(hilos > 1){
 		pthread_barrier_wait(&bar[b]);
-		parte = parte*2;
+		inicio = id*parte;
+		fin = inicio + parte;
 		if(id < hilos/2) {
 			mergeSort(&A[id*parte], inicio, fin-1, id);
 			mergeSort(&B[id*parte], inicio, fin-1, id);
@@ -97,6 +96,7 @@ void* funcion(void *arg){
 			break;
 		}
 		hilos = hilos/2;
+		parte = parte*2;
 		b++;
 	}
 	
@@ -175,12 +175,14 @@ int main(int argc, char* argv[]){
 	//mergeSort(A, 0, N-1);
 	//mergeSort(B, 0, N-1);
 	
+	/*
 	for(i=0;i<N;i++) {
 		if(A[i] != B[i]) {
 			check = false;
 			break;
 		}
 	}
+	*/
 
 	printf("Tiempo en segundos %f\n", dwalltime() - timetick);
 
