@@ -1,174 +1,264 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <time.h>
-#include <stdbool.h>
 #include <pthread.h>
+#include <sys/time.h>
+#include <math.h>
 
-int N;
-int *A, *B;
-int *L[4], *R[4];
-int cantBar = (int)log2(T);
-pthread_barrier_t bar[cantBar];
+#define CHECK_PART_SORTING 0
 
-//Para calcular tiempo
-double dwalltime(){
-        double sec;
-        struct timeval tv;
+// Cantidad de elementos del vector
+int N = 100;
 
-        gettimeofday(&tv,NULL);
-        sec = tv.tv_sec + tv.tv_usec/1000000.0;
-        return sec;
+// Cantidad de hilos
+int T;
+
+// Vector a ordenar
+int *vector;
+
+// Variables de sincronizacion
+pthread_barrier_t *barriers;
+
+double dwalltime();
+
+void mergeSort_iterative(int *, int);
+void merge(int *, int *, int, int *);
+void printArray(int *, int);
+
+void *funcion(void *arg)
+{
+    int id = *(int *)arg;
+    printf("Hilo id:%d\n", id);
+
+    int hilos = T;
+    int parte = N / T;
+    int inicio = id * parte;
+
+    mergeSort_iterative(vector + inicio, parte);
+    // printArray(vector + inicio, parte);
+
+    int barrier_select = 0;
+    int mid, right;
+    do
+    {
+        pthread_barrier_wait(&barriers[barrier_select]);
+        hilos = hilos / 2;
+        if (id < hilos)
+        {
+            
+            barrier_select++;
+            int *temp = (int *)malloc(parte * 2 * sizeof(int));
+
+            // Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
+            merge(vector + inicio, vector + (id + hilos) * parte, parte, temp + inicio);
+
+            // Copy the merged subarray back to the original array
+            for (int i = inicio; i <= parte * 2; i++)
+            {
+                vector[i] = temp[i];
+            }
+            parte *= 2;
+        }
+        else
+        {
+            break;
+        }
+    } while (hilos > 1);
+
+    // pthread_barrier_wait(&barriers[0]);
+
+    pthread_exit(NULL);
 }
 
-void merge(int* array, int inicio, int medio, int fin, int id) {
-	int n1 = medio - inicio + 1;
-	int n2 = fin - medio;
-	int i = 0;
-	int j = 0;
-	int k = inicio;
-	
-	// Se guarda los valores de array en los auxiliares
-	for(int i=0;i<n1;i++) {
-		L[id][i] = array[inicio + i];
-	}
-	for(int j=0;j<n2;j++) {
-		R[id][j] = array[medio + 1 + j];
-	}
-	
-	i = 0;
-	j = 0;
-	
-	// Se ordena el arreglo eligiendo el valor más chico entre L y R, y el elegido avanzaz una posición
-	while(i < n1 && j < n2) {
-		if(L[id][i] <= R[id][j]) {
-			array[k] = L[id][i];
-			i++;
-		} else {
-			array[k] = R[id][j];
-			j++;
-		}
-		k++;
-	}
-	
-	while(i < n1) {
-		array[k] = L[id][i];
-		i++;
-		k++;
-	}
-	while(j < n2) {
-		array[k] = R[id][j];
-		j++;
-		k++;
-	}
+int main(int argc, char *argv[])
+{
+    int i, j;
+    double promedio;
+    double timetick;
+    int check = 1;
+
+    // Controla los argumentos al programa
+    if ((argc != 3) || ((N = atoi(argv[1])) <= 0) || ((T = atoi(argv[2])) <= 0))
+    {
+        printf("\nUsar: %s x t\n  n: Dimension del vector\n t: Cantidad de hilos", argv[0]);
+        exit(1);
+    }
+
+    // Aloca memoria para el vector
+    vector = (int *)malloc(sizeof(int) * N);
+    int cant_barrs = (int)log2(T);
+    barriers = (pthread_barrier_t *)malloc(sizeof(pthread_barrier_t) * cant_barrs);
+
+    // Inicializa el vector con valores aleatorios
+    srand(time(NULL));
+    for (i = 0; i < N; i++)
+    {
+        vector[i] = rand() % 100;
+    }
+
+#if CHECK_PART_SORTING == 0
+    printf("Arreglo desordenado es \n");
+    printArray(vector, N);
+#else
+    for (i = 0; i < T; i++)
+    {
+        printf("Parte %d desordenada es \n", i);
+        printArray(vector + i * N / T, N / T);
+    }
+#endif
+
+    pthread_t misThreads[T];
+    int threads_ids[T];
+
+    int div = 1;
+    for (i = 0; i < T - 1; i++)
+    {
+        pthread_barrier_init(&barriers[i], NULL, T / div);
+        div *= 2;
+    }
+
+    // Realiza la ordenacion
+    timetick = dwalltime();
+
+    for (int id = 0; id < T; id++)
+    {
+        threads_ids[id] = id;
+        pthread_create(&misThreads[id], NULL, &funcion, (void *)&threads_ids[id]);
+    }
+
+    for (int id = 0; id < T; id++)
+    {
+        pthread_join(misThreads[id], NULL);
+    }
+
+    printf("\nTiempo en segundos %f\n", dwalltime() - timetick);
+
+// Verifica el resultado
+#if CHECK_PART_SORTING == 1
+    for (i = 0; i < T; i++)
+    {
+        for (j = i * N / T; j < (i + 1) * N / T - 1; j++)
+        {
+            check = check && (vector[j] <= vector[j + 1]);
+        }
+    }
+#else
+    for (i = 0; i < N - 1; i++)
+    {
+        check = check && (vector[i] <= vector[i + 1]);
+    }
+#endif
+
+#if CHECK_PART_SORTING == 1
+    for (i = 0; i < T; i++)
+    {
+        printf("Parte %d ordenada es \n", i);
+        printArray(vector + i * N / T, N / T);
+    }
+#else
+    printf("Arreglo ordenado es \n");
+    printArray(vector, N);
+#endif
+
+    if (check)
+    {
+        printf("Ordenacion del vector resultado correcto\n");
+    }
+    else
+    {
+        printf("Ordenacion del vector resultado erroneo\n");
+    }
+
+    for (i = 0; i < cant_barrs; i++)
+    {
+        pthread_barrier_destroy(&barriers[i]);
+    }
+
+    free(barriers);
+    free(vector);
+    return (0);
 }
 
-void mergeSort(int* array, int inicio, int fin, int id) {
-	if(inicio < fin) {
-		int medio = inicio + (fin - inicio)/2;
-		
-		// Se divide el arreglo en partes recursivamente
-		mergeSort(array, inicio, medio, id);
-		mergeSort(array, medio+1, fin, id);
-		
-		merge(array, inicio, medio, fin, id);
-	}
+// Para calcular tiempo
+double dwalltime()
+{
+    double sec;
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    sec = tv.tv_sec + tv.tv_usec / 1000000.0;
+    return sec;
 }
 
-void* funcion(void *arg){
-	int id =* (int*)arg;
-	int parte = N/T;
-	int hilos = T;
-	int b = 0;
-	
-	int inicio = id*parte;
-	int fin = inicio+parte;
-	
-	while(hilos > 1){
-		pthread_barrier_wait(&bar[b]);
-		parte = parte*2;
-		if(id < hilos/2) {
-			mergeSort(&A[id*parte], inicio, fin, id);
-			mergeSort(&B[id*parte], inicio, fin, id);
-		} else {
-			break;
-		}
-		hilos = hilos/2;
-		b++;
-	}
+#include <stdio.h>
+#include <stdlib.h>
+
+// Function to merge two sorted arrays of the same size into a single sorted array
+void merge(int *arr1, int *arr2, int size, int *result)
+{
+    int i = 0, j = 0, k = 0;
+
+    // Merge the two arrays into result
+    while (i < size && j < size)
+    {
+        if (arr1[i] <= arr2[j])
+        {
+            result[k++] = arr1[i++];
+        }
+        else
+        {
+            result[k++] = arr2[j++];
+        }
+    }
+
+    // Copy the remaining elements of arr1, if any
+    while (i < size)
+    {
+        result[k++] = arr1[i++];
+    }
+
+    // Copy the remaining elements of arr2, if any
+    while (j < size)
+    {
+        result[k++] = arr2[j++];
+    }
 }
 
-// "argc" es la cantidad de argumentos (en este caso 2)
-int main(int argc, char* argv[]){
-	N = atoi(argv[1]);
-	T = atoi(argv[2]);
-	int i;
-	bool check = true;
-	double timetick;
-	
-	srand (time(NULL));
-	
-	for(int b=0;b<cantBar;b++){
-		pthread_barrier_init(&bar[b], NULL, T/div); // Inicialización de las barreras
-		div = div*2;
-	}
-	
-	// Se reserva memoria para los arreglos
-	A = (int*)malloc(sizeof(int)*N);
-	B = (int*)malloc(sizeof(int)*N);
-	
-	// Se reserva memoria para los arreglos auxiliares
-	for(int t=0;t<T;t++) {
-		L[t] = (int*)malloc(sizeof(int)*N);
-		R[t] = (int*)malloc(sizeof(int)*N);
-	}
-	
-	// Inicializa los threads
-	pthread_t misThreads[T];
-	int threads_ids[T];
+// Iterative merge sort function
+void mergeSort_iterative(int *arr, int n)
+{
+    int *temp = (int *)malloc(n * sizeof(int));
+    if (temp == NULL)
+    {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
 
-	for(int i=0;i<N;i++){
-		A[i] = rand() % 999;
-		B[i] = rand() % 999;
-	}
-	
-	timetick = dwalltime();
-	
-	for(int id=0;id<T;id++){
-		threads_ids[id]=id;
-		pthread_create(&misThreads[id],NULL,&funcion,(void*)&threads_ids[id]);
-	}
-	for(int id=0;id<T;id++){
-		pthread_join(misThreads[id],NULL);
-	}
-	
-	mergeSort(A, 0, N-1);
-	mergeSort(B, 0, N-1);
-	
-	for(i=0;i<N;i++) {
-		if(A[i] != B[i]) {
-			check = false;
-			break;
-		}
-	}
+    for (int curr_size = 1; curr_size <= n - 1; curr_size = 2 * curr_size)
+    {
+        for (int left_start = 0; left_start < n - 1; left_start += 2 * curr_size)
+        {
+            int mid = left_start + curr_size - 1;
+            int right_end = (left_start + 2 * curr_size - 1 < n - 1) ? (left_start + 2 * curr_size - 1) : (n - 1);
 
-	printf("Tiempo en segundos %f\n", dwalltime() - timetick);
+            // Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
+            merge(arr + left_start, arr + mid + 1, curr_size, temp + left_start);
 
-	if(check) {
-		printf("Los arreglos tienen los mismos elementos\n");
-	} else {
-		printf("Los arreglos tienen elementos distintos\n");
-	}
-	
-	for(int b=0;b<cantBar;b++){
-		pthread_barrier_destroy(&bar[b]);
-	}
-	
-	free(A);
-	free(B);
-	for(t=0;t<T;t++) {
-		free(L[t]);
-		free(R[t]);
-	}
-	return 0;
+            // Copy the merged subarray back to the original array
+            for (int i = left_start; i <= right_end; i++)
+            {
+                arr[i] = temp[i];
+            }
+        }
+    }
+
+    free(temp);
+}
+
+// Function to print an array
+void printArray(int *data, int size)
+{
+    for (int i = 0; i < size; i++)
+        printf("%d ", data[i]);
+    printf("\n");
 }

@@ -1,156 +1,214 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <time.h>
-#include <stdbool.h>
+#include <sys/time.h>
+#include <string.h>
 
-int N;
-int *A, *B;
-int *L, *R;
+#define PRINT 1
+#define ADJACENT_SUBARRAYS 0
 
-//Para calcular tiempo
-double dwalltime(){
-        double sec;
-        struct timeval tv;
+double dwalltime();
+#if ADJACENT_SUBARRAYS == 1
+void merge(int*, int, int, int);
+#else
+void merge(int*, int*, int, int*);
+#endif
+void mergeSort_iterative(int*, int);
+void printArray(int*, int);
 
-        gettimeofday(&tv,NULL);
-        sec = tv.tv_sec + tv.tv_usec/1000000.0;
-        return sec;
+// Main function to test the merge sort algorithm
+int main(int argc, char *argv[])
+{
+    int N;
+
+    double timetick;
+    int checkA = 1;
+    int i;
+
+    if ((argc < 2) || ((N = atoi(argv[1])) <= 0))
+    {
+        printf("\nUsar: %s n\n  n: Dimension del vector", argv[0]);
+        exit(1);
+    }
+
+    int* A = (int*) malloc(sizeof(int)*N);
+    srand(time(NULL));
+    for (int i = 0; i < N; i++)
+    {
+        A[i] = rand() % 10000;
+    }
+
+#if PRINT != 0
+    printf("Given array is \n");
+    printArray(A, N);
+#endif
+
+    timetick = dwalltime();
+
+    mergeSort_iterative(A, N);
+    printf("\n-- Iterative merge --\n");
+    printf("Time in secs %f\n", dwalltime() - timetick);
+
+    for (i = 0; i < N - 1; i++)
+    {
+        checkA = checkA && (A[i] <= A[i + 1]);
+    }
+
+    if (checkA)
+    {
+        printf("\nArray 'A' sorting went okay\n");
+    }
+    else
+    {
+        printf("\nArray 'A' sorting went wrong\n");
+    }
+
+#if PRINT != 0
+    printf("\nSorted array 'A' is \n");
+    printArray(A, N);
+#endif
+    return 0;
 }
 
-void merge(int* array, int inicio, int medio, int fin) {
-	int n1 = medio - inicio + 1;
-	int n2 = fin - medio;
-	int i = 0;
-	int j = 0;
-	int k = inicio;
-	
-	// Reservar y liberar memoria en cada llamada al merge es super ineficiente
-	// Se podría reservar y liberar una sola vez en el main
-	//int* L = (int*)malloc(sizeof(int)*n1);
-	//int* R = (int*)malloc(sizeof(int)*n2);
-	
-	// Se guarda los valores de array en los auxiliares
-	for(int i=0;i<n1;i++) {
-		L[i] = array[inicio + i];
-	}
-	for(int j=0;j<n2;j++) {
-		R[j] = array[medio + 1 + j];
-	}
-	
-	i = 0;
-	j = 0;
-	
-	// Se ordena el arreglo eligiendo el valor más chico entre L y R, y el elegido avanzaz una posición
-	while(i < n1 && j < n2) {
-		if(L[i] <= R[j]) {
-			array[k] = L[i];
-			i++;
-		} else {
-			array[k] = R[j];
-			j++;
-		}
-		k++;
-	}
-	
-	while(i < n1) {
-		array[k] = L[i];
-		i++;
-		k++;
-	}
-	while(j < n2) {
-		array[k] = R[j];
-		j++;
-		k++;
-	}
-	
-	//free(L);
-	//free(R);
+// Para calcular tiempo
+double dwalltime()
+{
+    double sec;
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    sec = tv.tv_sec + tv.tv_usec / 1000000.0;
+    return sec;
 }
 
-void mergeSort(int* array, int inicio, int fin) {
-	if(inicio < fin) {
-		int medio = inicio + (fin - inicio)/2;
+#if ADJACENT_SUBARRAYS == 1
+// Function to merge two subarrays data[l..m] and data[m+1..r] of array data[]
+void merge(int* data, int l, int m, int r)
+{
+    int i, j, k;
+    int n1 = m - l + 1;
+    int n2 = r - m;
 
-		// Se divide el arreglo en partes recursivamente
-		mergeSort(array, inicio, medio);
-		mergeSort(array, medio+1, fin);
+    // Create temporary arrays
+    int* L = (int*) malloc(sizeof(int) * n1);
+	int* R = (int*) malloc(sizeof(int) * n2);
 
-		merge(array, inicio, medio, fin);
-	}
+    // Copy data to temporary arrays L[] and R[]
+    for (i = 0; i < n1; i++)
+        L[i] = data[l + i];
+    for (j = 0; j < n2; j++)
+        R[j] = data[m + 1 + j];
+
+    // Merge the temporary arrays back into data[l..r]
+    i = 0; // Initial index of first subarray
+    j = 0; // Initial index of second subarray
+    k = l; // Initial index of merged subarray
+    while (i < n1 && j < n2)
+    {
+        if (L[i] <= R[j])
+        {
+            data[k] = L[i];
+            i++;
+        }
+        else
+        {
+            data[k] = R[j];
+            j++;
+        }
+        k++;
+    }
+
+    // Copy the remaining elements of L[], if any
+    while (i < n1)
+    {
+        data[k] = L[i];
+        i++;
+        k++;
+    }
+
+    // Copy the remaining elements of R[], if any
+    while (j < n2)
+    {
+        data[k] = R[j];
+        j++;
+        k++;
+    }
+
+    free(L);
+    free(R);
 }
 
-// "argc" es la cantidad de argumentos (en este caso 2)
-int main(int argc, char* argv[]){
-	int i;
-	bool check = true;
-	double timetick;
-	
-	srand (time(NULL));
-	// argv[] es un arreglo que contiene los parámetros recibidos en orden
-	N = atoi(argv[1]);
-	
-	// Se reserva memoria para los arreglos
-	A = (int*)malloc(sizeof(int)*N);
-	B = (int*)malloc(sizeof(int)*N);
-	
-	// Se reserva memoria para los arreglos auxiliares
-	L = (int*)malloc(sizeof(int)*N);
-	R = (int*)malloc(sizeof(int)*N);
-	
-	for(int i=0;i<N;i++){
-		// Si no se reinicia la seed antes de dar valor a B[i], debería dar el mismo que a A
-		//srand (time(0));
-		//srand (A[i-1]);
-		A[i] = rand() % 999;
-		B[i] = rand() % 999;
-	}
-	
-	/*
-	printf("No ordenado\n");
-	printf("%d", A[0]);
-	for(i=1;i<N;i++){
-		printf(" %d", A[i]);
-	}
-	printf("\n");
-	*/
-	
-	timetick = dwalltime();
-	
-	mergeSort(A, 0, N-1);
-	mergeSort(B, 0, N-1);
-	
-	for(i=0;i<N;i++) {
-		if(A[i] != B[i])
-			check = false;
-			break;
-	}
+// Iterative implementation of merge sort
+void mergeSort_iterative(int* data, int n)
+{
+    int m;
+    for (m = 1; m < n; m = m * 2)
+    {
+        for (int i = 0; i < n - m; i += 2 * m)
+        {
+            int left = i;
+            int mid = i + m - 1;
+            int right = (i + 2 * m - 1 < n - 1) ? (i + 2 * m - 1) : (n - 1);
+            merge(data, left, mid, right);
+        }
+    }
+}
+#else
+// Function to merge two sorted arrays of the same size into a single sorted array
+void merge(int *arr1, int *arr2, int size, int *result) {
+    int i = 0, j = 0, k = 0;
 
-	/*
-	printf("Ordenado\n");
-	printf("%d", A[0]);
-	for(i=1;i<N;i++){
-		printf(" %d", A[i]);
-	}
-	printf("\n");
+    // Merge the two arrays into result
+    while (i < size && j < size) {
+        if (arr1[i] <= arr2[j]) {
+            result[k++] = arr1[i++];
+        } else {
+            result[k++] = arr2[j++];
+        }
+    }
 
-	printf("%d", B[0]);
-	for(i=1;i<N;i++){
-		printf(" %d", B[i]);
-	}
-	printf("\n");
-	*/
-	if(check) {
-		printf("Los arreglos tienen los mismos elementos\n");
-	} else {
-		printf("Los arreglos tienen elementos distintos\n");
-	}
-	
-	printf("Tiempo en segundos %f\n", dwalltime() - timetick);
-		
-	free(A);
-	free(B);
-	free(L);
-	free(R);
-	return 0;
+    // Copy the remaining elements of arr1, if any
+    while (i < size) {
+        result[k++] = arr1[i++];
+    }
+
+    // Copy the remaining elements of arr2, if any
+    while (j < size) {
+        result[k++] = arr2[j++];
+    }
+}
+
+// Iterative merge sort function
+void mergeSort_iterative(int* arr, int n) {
+    int *temp = (int *)malloc(n * sizeof(int));
+    if (temp == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int curr_size = 1; curr_size <= n-1; curr_size = 2*curr_size) {
+        for (int left_start = 0; left_start < n-1; left_start += 2*curr_size) {
+            int mid = left_start + curr_size - 1;
+            int right_end = (left_start + 2*curr_size - 1 < n-1) ? (left_start + 2*curr_size - 1) : (n-1);
+
+            // Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
+            merge(arr + left_start, arr + mid + 1, curr_size, temp + left_start);
+            
+            // Copy the merged subarray back to the original array
+            for (int i = left_start; i <= right_end; i++) {
+                arr[i] = temp[i];
+            }
+        }
+    }
+
+    free(temp);
+}
+#endif
+
+// Function to print an array
+void printArray(int* data, int size)
+{
+    for (int i = 0; i < size; i++)
+        printf("%d ", data[i]);
+    printf("\n");
 }
