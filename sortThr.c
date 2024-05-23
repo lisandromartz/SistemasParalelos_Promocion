@@ -44,29 +44,27 @@ void *funcion(void *arg)
     hilos /= 2;
     while (id < hilos && hilos > 1)
     {
-		// Merge the subarray ordered by one 'left' process with 
-        // the one ordered by its 'right' process counterpart
-		merge(vector + inicio, vector + (id + hilos) * parte, parte, temp);
+        inicio = id * parte * 2;
+		merge(vector + inicio, vector + parte, parte, temp);
 
-		barrier_select++;
-		pthread_barrier_wait(&barriers[barrier_select]);
-
-		// Copy the merged subarray back to the original array
         parte *= 2;
-        inicio = id * parte;
 		for (int i = 0; i < parte; i++)
 		{
 			vector[inicio + i] = temp[i];
 		}
-        pthread_barrier_wait(&barriers[barrier_select]);
+
+		barrier_select++;
+		pthread_barrier_wait(&barriers[barrier_select]);
+        
 		hilos /= 2;
     }
 
 	if(id == 0)
 	{
-		merge(vector + inicio, vector + (id + hilos) * parte, parte, temp);
+		inicio = id * parte * 2;
+		merge(vector + inicio, vector + parte, parte, temp);
+
         parte *= 2;
-        inicio = id * parte;
 		for (int i = 0; i < parte; i++)
 		{
 			vector[inicio + i] = temp[i];
