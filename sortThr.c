@@ -28,48 +28,37 @@ void *funcion(void *arg)
     int id = *(int *)arg;
     printf("Hilo id:%d\n", id);
 
-    int hilos = T;
     int parte = N / T;
     int inicio = id * parte;
-    //Each process allocates only the memory it'll require
-    int size_temp = N / (1 << (int) ceil(log2(id + 1))); 
-	int *temp = (int *)malloc(size_temp * sizeof(int));
+    // Each process allocates only the memory it'll require
+    int size_temp = N / (1 << (int)ceil(log2(id + 1)));
+    int *temp = (int *)malloc(size_temp * sizeof(int));
 
     // Each process orders its part of the array
     mergeSort_iterative(vector + inicio, parte);
 
-	int barrier_select = 0;
-	pthread_barrier_wait(&barriers[barrier_select]);
+    int barrier_select = 0;
+    pthread_barrier_wait(&barriers[barrier_select]);
 
-    hilos /= 2;
-    while (id < hilos && hilos > 1)
+    int hilos = T/2;
+    while (id < hilos)
     {
         inicio = id * parte * 2;
-		merge(vector + inicio, vector + parte, parte, temp);
+        merge(vector + inicio, vector + parte, parte, temp);
 
         parte *= 2;
-		for (int i = 0; i < parte; i++)
-		{
-			vector[inicio + i] = temp[i];
-		}
+        for (int i = 0; i < parte; i++)
+        {
+            vector[inicio + i] = temp[i];
+        }
 
-		barrier_select++;
-		pthread_barrier_wait(&barriers[barrier_select]);
-        
-		hilos /= 2;
+        if(hilos > 1) {
+            barrier_select++;
+            pthread_barrier_wait(&barriers[barrier_select]);
+        }
+
+        hilos /= 2;
     }
-
-	if(id == 0)
-	{
-		inicio = id * parte * 2;
-		merge(vector + inicio, vector + parte, parte, temp);
-
-        parte *= 2;
-		for (int i = 0; i < parte; i++)
-		{
-			vector[inicio + i] = temp[i];
-		}
-	}
 
     free(temp);
     pthread_exit(NULL);
@@ -91,8 +80,8 @@ int main(int argc, char *argv[])
 
     // Aloca memoria para el vector
     vector = (int *)malloc(sizeof(int) * N);
-    int cant_barrs = (int) log2(T);
-    barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
+    int cant_barrs = (int)log2(T);
+    barriers = (pthread_barrier_t *)malloc(sizeof(pthread_barrier_t) * cant_barrs);
 
     // Inicializa el vector con valores aleatorios
     srand(time(NULL));
