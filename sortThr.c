@@ -5,8 +5,6 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define CHECK_PART_SORTING 0
-
 // Cantidad de elementos del vector
 int N = 100;
 
@@ -33,10 +31,12 @@ void *funcion(void *arg)
     int hilos = T;
     int parte = N / T;
     int inicio = id * parte;
-	int *temp = (int *)malloc(N * sizeof(int));
+    //Each process allocates only the memory it'll require
+    int size_temp = N / (1 << (int) ceil(log2(id + 1))); 
+	int *temp = (int *)malloc(size_temp * sizeof(int));
 
+    // Each process orders its part of the array
     mergeSort_iterative(vector + inicio, parte);
-    // printArray(vector + inicio, parte);
 
 	int barrier_select = 0;
 	pthread_barrier_wait(&barriers[barrier_select]);
@@ -44,8 +44,8 @@ void *funcion(void *arg)
     hilos /= 2;
     while (id < hilos && hilos > 1)
     {
-		// Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
-        // printf("Soy %d, entre al while", id);
+		// Merge the subarray ordered by one 'left' process with 
+        // the one ordered by its 'right' process counterpart
 		merge(vector + inicio, vector + (id + hilos) * parte, parte, temp);
 
 		barrier_select++;
@@ -73,8 +73,7 @@ void *funcion(void *arg)
 		}
 	}
 
-    // pthread_barrier_wait(&barriers[0]);
-
+    free(temp);
     pthread_exit(NULL);
 }
 
@@ -104,16 +103,8 @@ int main(int argc, char *argv[])
         vector[i] = rand() % 100;
     }
 
-#if CHECK_PART_SORTING == 0
     printf("Arreglo desordenado es \n");
     printArray(vector, N);
-#else
-    for (i = 0; i < T; i++)
-    {
-        printf("Parte %d desordenada es \n", i);
-        printArray(vector + i * N / T, N / T);
-    }
-#endif
 
     pthread_t misThreads[T];
     int threads_ids[T];
@@ -121,7 +112,6 @@ int main(int argc, char *argv[])
     int div = 1;
     for (i = 0; i < cant_barrs; i++)
     {
-        printf("Cant. proceso en barrera %d : %d\n", i, T / div);
         pthread_barrier_init(&barriers[i], NULL, T / div);
         div *= 2;
     }
@@ -142,32 +132,14 @@ int main(int argc, char *argv[])
 
     printf("\nTiempo en segundos %f\n", dwalltime() - timetick);
 
-// Verifica el resultado
-#if CHECK_PART_SORTING == 1
-    for (i = 0; i < T; i++)
-    {
-        for (j = i * N / T; j < (i + 1) * N / T - 1; j++)
-        {
-            check = check && (vector[j] <= vector[j + 1]);
-        }
-    }
-#else
+    // Verifica el resultado
     for (i = 0; i < N - 1; i++)
     {
         check = check && (vector[i] <= vector[i + 1]);
     }
-#endif
 
-#if CHECK_PART_SORTING == 1
-    for (i = 0; i < T; i++)
-    {
-        printf("Parte %d ordenada es \n", i);
-        printArray(vector + i * N / T, N / T);
-    }
-#else
     printf("Arreglo ordenado es \n");
     printArray(vector, N);
-#endif
 
     if (check)
     {
