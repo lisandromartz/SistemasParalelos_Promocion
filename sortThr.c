@@ -31,8 +31,8 @@ void *funcion(void *arg)
     int parte = N / T;
     int inicio = id * parte;
     // Each process allocates only the memory it'll require
-    int size_temp = N / (1 << (int)ceil(log2(id + 1)));
-    int *temp = (int *)malloc(size_temp * sizeof(int));
+    // int size_temp = N / (1 << (int)ceil(log2(id + 1)));
+    int *temp = (int *)malloc(N * sizeof(int));
 
     // Each process orders its part of the array
     mergeSort_iterative(vector + inicio, parte);
@@ -41,9 +41,9 @@ void *funcion(void *arg)
     pthread_barrier_wait(&barriers[barrier_select]);
 
     int hilos = T/2;
-    while (id < hilos)
+    int merge_id = id;
+    while (merge_id % 2 == 0 && hilos > 0)
     {
-        inicio = id * parte * 2;
         merge(vector + inicio, vector + parte, parte, temp);
 
         parte *= 2;
@@ -58,6 +58,7 @@ void *funcion(void *arg)
         }
 
         hilos /= 2;
+        merge_id /= 2;
     }
 
     free(temp);
