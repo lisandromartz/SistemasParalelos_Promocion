@@ -7,3 +7,5 @@ Password: mjvPCI5B
 Home de usuario: /nethome/sdyp18
 
 Comando para ejecutar en el cluster(sin el sbatch se ejecutaría en frontend): sbatch ./script.sh
+
+Línea para correr el MPI: mpirun -np 2 ./sortMpi 16
