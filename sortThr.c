@@ -14,6 +14,8 @@ int T;
 // Vector a ordenar
 int *vector;
 
+int** sorted_arrs;
+
 // Variables de sincronizacion
 pthread_barrier_t *barriers;
 
@@ -26,17 +28,42 @@ void printArray(int *, int);
 void *funcion(void *arg)
 {
     int id = *(int *)arg;
-    printf("Hilo id:%d\n", id);
+    printf("Hilo id: %d\n", id);
 
     int hilos = T;
     int parte = N / T;
     int inicio = id * parte;
     //Each process allocates only the memory it'll require
-    int size_temp = N / (1 << (int) ceil(log2(id + 1))); 
-	int *temp = (int *)malloc(size_temp * sizeof(int));
+    int max_size = N / (1 << (int) ceil(log2(id + 1))); 
 
+    sorted_arrs[id] = (int*) malloc(sizeof(int) * max_size);
+    if (sorted_arrs[id] == NULL) {
+        perror("Failed to allocate memory for sorted_arrs[id]");
+        pthread_exit(NULL);
+    }
+
+	int* temp = (int*) malloc(max_size * sizeof(int));
+    if (temp == NULL) {
+        perror("Failed to allocate memory for temp");
+        exit(EXIT_FAILURE);
+    }
+
+    int i;
+    for (i = 0; i < max_size; i++)
+    {
+        if(i >= parte)
+        {
+            sorted_arrs[id][i] = 0;
+        }
+        else
+        {
+            sorted_arrs[id][i] = vector[inicio + i];
+        }
+    }
+    
     // Each process orders its part of the array
-    mergeSort_iterative(vector + inicio, parte);
+    // mergeSort_iterative(vector + inicio, parte);
+    mergeSort_iterative(sorted_arrs[id], parte);
 
 	int barrier_select = 0;
 	pthread_barrier_wait(&barriers[barrier_select]);
@@ -46,31 +73,27 @@ void *funcion(void *arg)
     {
 		// Merge the subarray ordered by one 'left' process with 
         // the one ordered by its 'right' process counterpart
-		merge(vector + inicio, vector + (id + hilos) * parte, parte, temp);
+        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp);
+
+        parte *= 2;
+        for (i = 0; i < parte; i++)
+		{
+			sorted_arrs[id][i] = temp[i];
+		}
 
 		barrier_select++;
 		pthread_barrier_wait(&barriers[barrier_select]);
-
-		// Copy the merged subarray back to the original array
-        parte *= 2;
-        inicio = id * parte;
-		for (int i = 0; i < parte; i++)
-		{
-			vector[inicio + i] = temp[i];
-		}
-        pthread_barrier_wait(&barriers[barrier_select]);
 		hilos /= 2;
     }
 
 	if(id == 0)
 	{
-		merge(vector + inicio, vector + (id + hilos) * parte, parte, temp);
+        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp);
         parte *= 2;
-        inicio = id * parte;
 		for (int i = 0; i < parte; i++)
 		{
 			vector[inicio + i] = temp[i];
-		}
+        }
 	}
 
     free(temp);
@@ -93,6 +116,17 @@ int main(int argc, char *argv[])
 
     // Aloca memoria para el vector
     vector = (int *)malloc(sizeof(int) * N);
+    if (vector == NULL) {
+        perror("Failed to allocate memory for vector");
+        exit(EXIT_FAILURE);
+    }
+
+    sorted_arrs = (int**) malloc(sizeof(int *) * T);
+    if (sorted_arrs == NULL) {
+        perror("Failed to allocate memory for sorted_arrs");
+        exit(EXIT_FAILURE);
+    }
+
     int cant_barrs = (int) log2(T);
     barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
 
@@ -156,6 +190,13 @@ int main(int argc, char *argv[])
     }
 
     free(barriers);
+
+    for (i = 0; i < T; i++)
+    {
+        free(sorted_arrs[i]);
+    }
+    free(sorted_arrs);
+
     free(vector);
     return (0);
 }
