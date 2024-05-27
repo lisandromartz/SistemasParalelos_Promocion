@@ -9,7 +9,7 @@
 long int N;
 
 // N = 2^(EXP)
-int EXP = 32;
+int EXP = 10;
 
 // Cantidad de hilos
 int NUM_THREADS;
@@ -17,7 +17,8 @@ int NUM_THREADS;
 // Vector a ordenar
 int *vector;
 
-int** sorted_arrs;
+int **sorted_arrs;
+int **temp_arrs;
 
 // Variables de sincronizacion
 pthread_barrier_t *barriers;
@@ -37,24 +38,12 @@ void *funcion(void *arg)
     int hilos = NUM_THREADS;
     long int parte = N / NUM_THREADS;
     long int inicio = id * parte;
-    //Each process allocates only the memory it'll require
-    long int max_size = N / (1 << (int) ceil(log2(id + 1)));
 
-    sorted_arrs[id] = (int*) malloc(sizeof(int) * max_size);
-    if (sorted_arrs[id] == NULL) {
-        perror("Failed to allocate memory for sorted_arrs[id]");
-        pthread_exit(NULL);
-    }
-
-	int* temp = (int*) malloc(sizeof(int) * max_size);
-    if (temp == NULL) {
-        perror("Failed to allocate memory for temp");
-        exit(EXIT_FAILURE);
-    }
-
+    // Each process allocates only the memory it'll require
+    long int max_size = N / (1 << (int)ceil(log2(id + 1)));
     for (i = 0; i < max_size; i++)
     {
-        if(i >= parte)
+        if (i >= parte)
         {
             sorted_arrs[id][i] = 0;
         }
@@ -63,43 +52,42 @@ void *funcion(void *arg)
             sorted_arrs[id][i] = vector[inicio + i];
         }
     }
-    
+
     // Each process orders its part of the array
     // mergeSort_iterative(vector + inicio, parte);
     mergeSort_iterative(sorted_arrs[id], parte);
 
-	int barrier_select = id % (hilos / 2);
-	pthread_barrier_wait(&barriers[barrier_select]);
+    int barrier_select = id % (hilos / 2);
+    pthread_barrier_wait(&barriers[barrier_select]);
 
     hilos /= 2;
     while (id < hilos && hilos > 1)
     {
-		// Merge the subarray ordered by one 'left' process with 
+        // Merge the subarray ordered by one 'left' process with
         // the one ordered by its 'right' process counterpart
-        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp);
+        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp_arrs[id]);
 
         parte *= 2;
         for (i = 0; i < parte; i++)
-		{
-			sorted_arrs[id][i] = temp[i];
-		}
+        {
+            sorted_arrs[id][i] = temp_arrs[id][i];
+        }
 
-		barrier_select = (NUM_THREADS - hilos) + id % (hilos / 2);
-		pthread_barrier_wait(&barriers[barrier_select]);
-		hilos /= 2;
+        barrier_select = (NUM_THREADS - hilos) + id % (hilos / 2);
+        pthread_barrier_wait(&barriers[barrier_select]);
+        hilos /= 2;
     }
 
-	if(id == 0)
-	{
-        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp);
+    if (id == 0)
+    {
+        merge(sorted_arrs[id], sorted_arrs[id + hilos], parte, temp_arrs[id]);
         parte *= 2;
-		for (int i = 0; i < parte; i++)
-		{
-			vector[inicio + i] = temp[i];
+        for (int i = 0; i < parte; i++)
+        {
+            vector[inicio + i] = temp_arrs[id][i];
         }
-	}
+    }
 
-    free(temp);
     pthread_exit(NULL);
 }
 
@@ -117,24 +105,56 @@ int main(int argc, char *argv[])
     }
 
     // Aloca memoria para el vector
-    N = (long int) pow(2, EXP);
-    vector = (int *)malloc(sizeof(int) * N);
-    if (vector == NULL) {
+    N = (long int)pow(2, EXP);
+    vector = (int *) malloc(sizeof(int) * N);
+    if (vector == NULL)
+    {
         perror("Failed to allocate memory for vector");
         exit(EXIT_FAILURE);
     }
 
-    sorted_arrs = (int**) malloc(sizeof(int *) * NUM_THREADS);
-    if (sorted_arrs == NULL) {
+    sorted_arrs = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (sorted_arrs == NULL)
+    {
         perror("Failed to allocate memory for sorted_arrs");
         exit(EXIT_FAILURE);
     }
 
+    temp_arrs = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (temp_arrs == NULL)
+    {
+        perror("Failed to allocate memory for temp_arrs");
+        exit(EXIT_FAILURE);
+    }
+
+    long int max_size;
+    for (i = 0; i < NUM_THREADS; i++)
+    {
+        max_size = N / (1 << (int)ceil(log2(i + 1)));
+        sorted_arrs[i] = (int *) malloc(sizeof(int) * max_size);
+        if (sorted_arrs[i] == NULL)
+        {
+            perror("Failed to allocate memory for sorted_arrs[i]");
+            pthread_exit(NULL);
+        }
+        temp_arrs[i] = (int *) malloc(sizeof(int) * max_size);
+        if (temp_arrs[i] == NULL)
+        {
+            perror("Failed to allocate memory for temp_arrs[i]");
+            pthread_exit(NULL);
+        }
+    }
+
     int cant_barrs = NUM_THREADS - 1;
     barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
-    if (barriers == NULL) {
+    if (barriers == NULL)
+    {
         perror("Failed to allocate memory for barriers");
         exit(EXIT_FAILURE);
+    }
+    for (i = 0; i < cant_barrs; i++)
+    {
+        pthread_barrier_init(&barriers[i], NULL, 2);
     }
 
     // Inicializa el vector con valores aleatorios
@@ -149,11 +169,6 @@ int main(int argc, char *argv[])
 
     pthread_t misThreads[NUM_THREADS];
     int threads_ids[NUM_THREADS];
-
-    for (i = 0; i < cant_barrs; i++)
-    {
-        pthread_barrier_init(&barriers[i], NULL, 2);
-    }
 
     // Realiza la ordenacion
     timetick = dwalltime();
@@ -193,14 +208,15 @@ int main(int argc, char *argv[])
     {
         pthread_barrier_destroy(&barriers[i]);
     }
-
     free(barriers);
 
     for (i = 0; i < NUM_THREADS; i++)
     {
         free(sorted_arrs[i]);
+        free(temp_arrs[i]);
     }
     free(sorted_arrs);
+    free(temp_arrs);
 
     free(vector);
     return (0);
@@ -216,9 +232,6 @@ double dwalltime()
     sec = tv.tv_sec + tv.tv_usec / 1000000.0;
     return sec;
 }
-
-#include <stdio.h>
-#include <stdlib.h>
 
 // Function to merge two sorted arrays of the same size into a single sorted array
 void merge(int *arr1, int *arr2, long int size, int *result)
