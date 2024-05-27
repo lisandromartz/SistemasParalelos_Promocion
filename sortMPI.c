@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 #include <mpi.h>
 
 #define TRUE 1
@@ -28,7 +28,7 @@ void initRoot(int N, int* A, int* B){
 	}
 }
 
-initAll(int N, int* parteArr){
+void initAll(int N, int* parteArr){
 	parteArr = (int*)malloc(sizeof(int)*N);
 	//parteA = (int*)malloc(sizeof(int)*N);
 	//parteB = (int*)malloc(sizeof(int)*N);
@@ -45,7 +45,7 @@ void merge(int* array, int inicio, int medio, int fin) {
 	// Se podría reservar y liberar una sola vez en el main
 	int* L = (int*)malloc(sizeof(int)*n1);
 	int* R = (int*)malloc(sizeof(int)*n2);
-	
+	printf("Llega al merge\n");
 	// Se guarda los valores de array en los auxiliares
 	for(int i=0;i<n1;i++) {
 		L[i] = array[inicio + i];
@@ -83,9 +83,8 @@ void merge(int* array, int inicio, int medio, int fin) {
 	free(L);
 	free(R);
 }
-
-void mergeSort(int id, int numProce, int* array, int parte) {
-	int procesosActivos = numProce;
+/*
+void mergeSortMPI(int id, int numProce, int* array, int parte, int inicio, int fin) {
 	int inicio = 0;
 	int fin = parte - 1;
 	int medio;
@@ -94,15 +93,36 @@ void mergeSort(int id, int numProce, int* array, int parte) {
 		medio = inicio + (fin - inicio)/2;
 
 		// Se divide el arreglo en partes recursivamente
-		mergeSort(array, inicio, medio);
-		mergeSort(array, medio+1, fin);
+		mergeSortMPI(id, numProce, array, inicio, medio);
+		mergeSortMPI(id, numProce, array, medio+1, fin);
 
 		merge(array, inicio, medio, fin);
 	}
-	
-	// Cuando los procesos terminan de ordenar las partes, los de la mitad
-	// superior las envían a los de la inferior para que estas las ordenen 
+}
+*/
+
+void mergeSort(int* array, int inicio, int fin) {
+	if(inicio < fin) {
+		int medio = inicio + (fin - inicio)/2;
+		printf("MergeSort\n");
+		// Se divide el arreglo en partes recursivamente
+		mergeSort(array, inicio, medio);
+		printf("MergeSort 2\n");
+		mergeSort(array, medio+1, fin);
+		
+		merge(array, inicio, medio, fin);
+	}
+}
+
+// Cuando los procesos terminan de ordenar las partes, los de la mitad
+// superior las envían a los de la inferior para que estas las ordenen
+void mergeArray(int id, int numProce, int* array, int parte) {
+	int procesosActivos = numProce;
 	int* recAux = (int*)malloc(sizeof(int)*(parte*numProce)/2);
+	int inicio = 0;
+	int medio;
+	int fin;
+
 	while(procesosActivos > 1){
 		procesosActivos = procesosActivos/2;
 
@@ -154,7 +174,7 @@ int main(int argc, char* argv[]){
 	MPI_Comm_rank(MPI_COMM_WORLD, &id);
 	// Se obtiene el número de procesos en ejecución, se guarda en 'numProce'
 	MPI_Comm_size(MPI_COMM_WORLD, &numProce);
-
+	
 	int N = atoi(argv[1]);
 	// Alocación de memoria para A y B
 	if(id == 0) {
@@ -172,7 +192,9 @@ int main(int argc, char* argv[]){
 
 	// Distribución de A entre los procesos
 	MPI_Scatter(A, parte, MPI_INT, parteArr, parte, MPI_INT, 0, MPI_COMM_WORLD);
-	mergeSortMPI(id, numProce, parteArr, parte);
+	printf("Llamada al scatter\n");
+	mergeSort(parteArr, 0, parte);
+	mergeArray(id, numProce, parteArr, parte);
 	if(id==0) {
 		for(int i=0;i<N;i++) {
 			A[i] = parteArr[i];
@@ -181,7 +203,8 @@ int main(int argc, char* argv[]){
 	
 	// Distribución de B entre los procesos
 	MPI_Scatter(B, parte, MPI_INT, parteArr, parte, MPI_INT, 0, MPI_COMM_WORLD);
-	mergeSortMPI(id, numProce, parteArr, parte);
+	mergeSort(parteArr, 0, parte);
+	mergeArray(id, numProce, parteArr, parte);
 	if(id==0) {
 		for(int i=0;i<N;i++) {
 			B[i] = parteArr[i];
@@ -194,8 +217,8 @@ int main(int argc, char* argv[]){
 
 	check = comparacion(parteArr, parteArr2, parte);
 
-	if( == FALSE) {
-		MPI_Scatter(check, 1, MPI_INT, check, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	if( check == FALSE) {
+		MPI_Scatter(&check, 1, MPI_INT, &check, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 
 	if(id == 0) {

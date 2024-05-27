@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
+#include <sys/time.h>
 #include <stdbool.h>
 
-int N;
+#define PRINT 0
+
+long N;
 int *A, *B;
 int *L, *R;
 
@@ -18,6 +20,15 @@ double dwalltime(){
         return sec;
 }
 
+// Imprime el arreglo
+void printArreglo(int* arr, long N)
+{
+    for (long i = 0; i < N; i++)
+        printf("%d ", arr[i]);
+    printf("\n");
+}
+
+/*
 void merge(int* array, int inicio, int medio, int fin) {
 	int n1 = medio - inicio + 1;
 	int n2 = fin - medio;
@@ -67,7 +78,8 @@ void merge(int* array, int inicio, int medio, int fin) {
 	//free(L);
 	//free(R);
 }
-
+*/
+/*
 void mergeSort(int* array, int inicio, int fin) {
 	if(inicio < fin) {
 		int medio = inicio + (fin - inicio)/2;
@@ -79,16 +91,64 @@ void mergeSort(int* array, int inicio, int fin) {
 		merge(array, inicio, medio, fin);
 	}
 }
+*/
+void merge(int *L, int *R, int parte, int *result) {
+    int i = 0, j = 0, k = 0;
+
+    while (i < parte && j < parte) {
+        if (L[i] <= R[j]) {
+            result[k++] = L[i++];
+        } else {
+            result[k++] = R[j++];
+        }
+    }
+
+    // Copia los elementos restantes de L
+    while (i < parte) {
+        result[k++] = L[i++];
+    }
+
+    // Copia los elementos restantes de R
+    while (j < parte) {
+        result[k++] = R[j++];
+    }
+}
+
+// Merge sort iterativo
+void mergeSortIterativo(int* arr, int N, int *temp) {
+
+    for (int parte = 1; parte <= N-1; parte = 2*parte) {
+        for (int inicio = 0; inicio < N-1; inicio += 2*parte) {
+            
+            int medio = inicio + parte - 1;
+            int fin = (inicio + 2*parte - 1 < N-1) ? (inicio + 2*parte - 1) : (N-1);
+
+			// Llamada al merge enviando como parámetro punteros al inicio de las dos mitades
+            merge(arr + inicio, arr + medio + 1, parte, temp + inicio);
+            
+            // Se copia el arreglo en temp
+            for (int i = inicio; i <= fin; i++) {
+                arr[i] = temp[i];
+			}
+		}
+	}
+}
 
 // "argc" es la cantidad de argumentos (en este caso 2)
 int main(int argc, char* argv[]){
 	int i;
 	bool check = true;
 	double timetick;
+	char *ptrFin;
 	
 	srand (time(NULL));
 	// argv[] es un arreglo que contiene los parámetros recibidos en orden
-	N = atoi(argv[1]);
+	N = strtol(argv[1], &ptrFin, 10);
+	//int potencia = atoi(argv[1]);
+	//N = (long int) pow(2, potencia);
+
+	if(*ptrFin != '\0')
+		printf("Conversión incorrecta");
 	
 	// Se reserva memoria para los arreglos
 	A = (int*)malloc(sizeof(int)*N);
@@ -102,10 +162,17 @@ int main(int argc, char* argv[]){
 		// Si no se reinicia la seed antes de dar valor a B[i], debería dar el mismo que a A
 		//srand (time(0));
 		//srand (A[i-1]);
-		A[i] = rand() % 999;
-		B[i] = rand() % 999;
+		A[i] = rand() % 1000;
+		B[i] = rand() % 1000;
 	}
 	
+	int *temp = (int*)malloc(sizeof(int)*N);
+
+	if (temp == NULL) {
+        fprintf(stderr, "Alocación de memoria fallida\n");
+        exit(EXIT_FAILURE);
+    }
+
 	/*
 	printf("No ordenado\n");
 	printf("%d", A[0]);
@@ -117,8 +184,8 @@ int main(int argc, char* argv[]){
 	
 	timetick = dwalltime();
 	
-	mergeSort(A, 0, N-1);
-	mergeSort(B, 0, N-1);
+	mergeSortIterativo(A, N, temp);
+	mergeSortIterativo(B, N, temp);
 	
 	for(i=0;i<N;i++) {
 		if(A[i] != B[i])
@@ -126,20 +193,11 @@ int main(int argc, char* argv[]){
 			break;
 	}
 
-	/*
-	printf("Ordenado\n");
-	printf("%d", A[0]);
-	for(i=1;i<N;i++){
-		printf(" %d", A[i]);
-	}
-	printf("\n");
+	#if PRINT == 1
+    		printArreglo(A, N);
+			printArreglo(B, N);
+	#endif
 
-	printf("%d", B[0]);
-	for(i=1;i<N;i++){
-		printf(" %d", B[i]);
-	}
-	printf("\n");
-	*/
 	if(check) {
 		printf("Los arreglos tienen los mismos elementos\n");
 	} else {
@@ -152,5 +210,6 @@ int main(int argc, char* argv[]){
 	free(B);
 	free(L);
 	free(R);
+	free(temp);
 	return 0;
 }

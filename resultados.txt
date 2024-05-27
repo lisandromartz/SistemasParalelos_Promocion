@@ -1,0 +1,11 @@
+N = 2^24
+
+Secuencial: 7.325023 seg
+MPI(2 procesos): 4.746839 seg
+Speedup: 1,543137022
+
+N = 2^27
+
+Secuencial: 62.881744 seg
+MPI(2 procesos): 43.662145 seg
+Speedup: 1,44018907
