@@ -6,6 +6,7 @@
 #include <math.h>
 
 #define DEBUG 1
+#define SHUFFLE_EQUAL 1
 
 // Cantidad de elementos del vector
 long int N;
@@ -31,6 +32,7 @@ pthread_barrier_t cmp_barrier;
 
 void init();
 void dispose();
+void shuffle(int *, long int);
 double dwalltime();
 void merge(int *, int *, long int, int *);
 void mergeSort_iterative(int *, long int, int *);
@@ -102,15 +104,18 @@ void *funcion(void *arg)
         }
     }
 
-    // pthread_barrier_wait(&cmp_barrier);
+    pthread_barrier_wait(&cmp_barrier);
 
-    // slice = N / NUM_THREADS;
-    // i = 0;
-    // while(check_slice)
-    // {
-    //     check_slice = (A[i] == B[i]);
-    //     i++;
-    // }
+    slice = N / NUM_THREADS;
+    i = 0;
+    while(check_slice && i < slice)
+    {
+        check_slice = (arrA[begin + i] == arrB[begin + i]);
+        i++;
+    }
+    if(!check_slice){
+        check = 0;
+    }
 
     pthread_exit(NULL);
 }
@@ -119,8 +124,10 @@ int main(int argc, char *argv[])
 {
     long int i;
     double timetick;
-    int checkA = 1;
-    int checkB = 1;
+#if DEBUG != 0
+    int check_sortA = 1;
+    int check_sortB = 1;
+#endif
 
     // Controla los argumentos al programa
     if ((argc != 3) || ((EXP = atoi(argv[1])) <= 0) || ((NUM_THREADS = atoi(argv[2])) <= 0))
@@ -158,35 +165,44 @@ int main(int argc, char *argv[])
     printf("\nTime in secs %f\n", dwalltime() - timetick);
 
     // Verifica el resultado
+#if DEBUG != 0
     for (i = 0; i < N - 1; i++)
     {
-        checkA = checkA && (arrA[i] <= arrA[i + 1]);
-        checkB = checkB && (arrB[i] <= arrB[i + 1]);
+        check_sortA = check_sortA && (arrA[i] <= arrA[i + 1]);
+        check_sortB = check_sortB && (arrB[i] <= arrB[i + 1]);
     }
 
-#if DEBUG != 0
     printf("\nSorted arrA is \n");
     printArray(arrA, N);
     printf("\nSorted arrB is \n");
     printArray(arrB, N);
-#endif
 
-    if (checkA)
+
+    if (check_sortA)
     {
-        printf("Success A!!\n");
+        printf("Success in sort A!!\n");
     }
     else
     {
         printf("Sort A went wrong:(\n");
     }
 
-    if (checkB)
+    if (check_sortB)
     {
-        printf("Success B!!\n");
+        printf("Success in sort B!!\n");
     }
     else
     {
         printf("Sort B went wrong:(\n");
+    }
+#endif
+    if(check)
+    {
+        printf("The arrays are equal");
+    }
+    else
+    {
+        printf("The arrays are NOT equal");
     }
 
     dispose();
@@ -278,8 +294,17 @@ void init()
     for (i = 0; i < N; i++)
     {
         arrA[i] = rand() % 1000;
+#if SHUFFLE_EQUAL != 0
+        arrB[i] = arrA[i];
+#else
         arrB[i] = rand() % 1000;
+#endif
     }
+
+#if SHUFFLE_EQUAL != 0
+        shuffle(arrA, N);
+        shuffle(arrB, N);
+#endif    
 }
 
 void dispose()
@@ -315,6 +340,23 @@ double dwalltime()
     gettimeofday(&tv, NULL);
     sec = tv.tv_sec + tv.tv_usec / 1000000.0;
     return sec;
+}
+
+void shuffle(int *arr, long int size)
+{
+    int aux;
+    srand(time(NULL));
+    if(size > 1)
+    {
+        int rand_i = 0;
+        for (long int i = size - 1; i > 1; i--)
+        {
+            aux = arr[i];
+            rand_i = rand() % i;
+            arr[i] = arr[rand_i];
+            arr[rand_i] = aux;
+        }
+    }
 }
 
 // Function to merge two sorted arrays of the same size into a single sorted array
