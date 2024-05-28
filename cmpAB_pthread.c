@@ -5,17 +5,17 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #define SHUFFLE_EQUAL 0
 
 // Cantidad de elementos del vector
-long int N;
+unsigned long int N;
 
 // N = 2^(EXP)
-int EXP = 10;
+unsigned int EXP = 10;
 
 // Cantidad de hilos
-int NUM_THREADS;
+unsigned int NUM_THREADS;
 
 int *arrA;
 int *arrB;
@@ -32,11 +32,11 @@ pthread_barrier_t cmp_barrier;
 
 void init();
 void dispose();
-void shuffle(int *, long int);
+void shuffle(int *, unsigned long int);
 double dwalltime();
-void merge(int *, int *, long int, int *);
-void mergeSort_iterative(int *, long int, int *);
-void printArray(int *, long int);
+void merge(int *, int *, unsigned long int, int *);
+void mergeSort_iterative(int *, unsigned long int, int *);
+void printArray(int *, unsigned long int);
 
 void *funcion(void *arg)
 {
@@ -45,15 +45,15 @@ void *funcion(void *arg)
     printf("Thread id: %d\n", id);
 #endif
 
-    int i;
-    int merge_threads = NUM_THREADS;
-    long int slice = N / NUM_THREADS;
-    long int begin = id * slice;
-    int barrier_select;
+    unsigned long int i;
+    unsigned int merge_threads = NUM_THREADS;
+    unsigned long int slice = N / NUM_THREADS;
+    unsigned long int begin = id * slice;
+    unsigned int barrier_select;
     int check_slice = 1;
 
     // Copy my respective part of the array
-    long int max_size = N / (1 << (int)ceil(log2(id + 1)));
+    unsigned long int max_size = N / (1 << (int)ceil(log2(id + 1)));
     for (i = 0; i < slice; i++)
     {
         sorted_slicesA[id][i] = arrA[begin + i];
@@ -122,7 +122,7 @@ void *funcion(void *arg)
 
 int main(int argc, char *argv[])
 {
-    long int i;
+    unsigned long int i;
     double timetick;
 #if DEBUG != 0
     int check_sortA = 1;
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 
 void init()
 {
-    N = (long int)pow(2, EXP);
+    N = (unsigned long int)pow(2, EXP);
 
     // Aloca memoria para el vector
     arrA = (int *) malloc(sizeof(int) * N);
@@ -249,8 +249,8 @@ void init()
         exit(EXIT_FAILURE);
     }
 
-    long int i;
-    long int max_size;
+    unsigned long int i;
+    unsigned long int max_size;
     for (i = 0; i < NUM_THREADS; i++)
     {
         max_size = N / (1 << (int)ceil(log2(i + 1)));
@@ -302,14 +302,13 @@ void init()
     }
 
 #if SHUFFLE_EQUAL != 0
-        shuffle(arrA, N);
         shuffle(arrB, N);
 #endif    
 }
 
 void dispose()
 {
-    long int i;
+    unsigned int i;
     for (i = 0; i < NUM_THREADS - 1; i++)
     {
         pthread_barrier_destroy(&merge_barriers[i]);
@@ -342,14 +341,14 @@ double dwalltime()
     return sec;
 }
 
-void shuffle(int *arr, long int size)
+void shuffle(int *arr, unsigned long int size)
 {
     int aux;
     srand(time(NULL));
     if(size > 1)
     {
-        int rand_i = 0;
-        for (long int i = size - 1; i > 1; i--)
+        unsigned long int rand_i = 0;
+        for (unsigned long int i = size - 1; i > 0; i--)
         {
             aux = arr[i];
             rand_i = rand() % i;
@@ -360,9 +359,9 @@ void shuffle(int *arr, long int size)
 }
 
 // Function to merge two sorted arrays of the same size into a single sorted array
-void merge(int *arr1, int *arr2, long int size, int *result)
+void merge(int *arr1, int *arr2, unsigned long int size, int *result)
 {
-    long int i = 0, j = 0, k = 0;
+    unsigned long int i = 0, j = 0, k = 0;
 
     // Merge the two arrays into result
     while (i < size && j < size)
@@ -391,11 +390,11 @@ void merge(int *arr1, int *arr2, long int size, int *result)
 }
 
 // Iterative merge sort function
-void mergeSort_iterative(int *arr, long int n, int *temp)
+void mergeSort_iterative(int *arr, unsigned long int n, int *temp)
 {
-    long int curr_size;
-    long int left_start, mid, right_end;
-    long int i;
+    unsigned long int curr_size;
+    unsigned long int left_start, mid, right_end;
+    unsigned long int i;
     for (curr_size = 1; curr_size <= n - 1; curr_size = 2 * curr_size)
     {
         for (left_start = 0; left_start < n - 1; left_start += 2 * curr_size)
@@ -416,9 +415,9 @@ void mergeSort_iterative(int *arr, long int n, int *temp)
 }
 
 // Function to print an array
-void printArray(int *data, long int size)
+void printArray(int *data, unsigned long int size)
 {
-    for (long int i = 0; i < size; i++)
+    for (unsigned long int i = 0; i < size; i++)
         printf("%d ", data[i]);
     printf("\n");
 }
