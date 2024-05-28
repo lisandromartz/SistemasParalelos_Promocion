@@ -5,8 +5,8 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define DEBUG 1
-#define SHUFFLE_EQUAL 1
+#define DEBUG 0
+#define SHUFFLE_EQUAL 0
 
 // Cantidad de elementos del vector
 long int N;
@@ -108,7 +108,7 @@ void *funcion(void *arg)
 
     slice = N / NUM_THREADS;
     i = 0;
-    while(check_slice && i < slice)
+    while(check && check_slice && i < slice)
     {
         check_slice = (arrA[begin + i] == arrB[begin + i]);
         i++;
