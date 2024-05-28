@@ -29,6 +29,8 @@ int **temp_arrs;
 pthread_barrier_t *merge_barriers;
 pthread_barrier_t cmp_barrier;
 
+void init();
+void dispose();
 double dwalltime();
 void merge(int *, int *, long int, int *);
 void mergeSort_iterative(int *, long int, int *);
@@ -116,8 +118,6 @@ void *funcion(void *arg)
 int main(int argc, char *argv[])
 {
     long int i;
-    int cant_barrs;
-    long int max_size;
     double timetick;
     int checkA = 1;
     int checkB = 1;
@@ -128,90 +128,8 @@ int main(int argc, char *argv[])
         printf("\nUsar: %s x t\n    x: Exponente para obtener un vector de 2^(x) elementos\n   t: Cantidad de hilos", argv[0]);
         exit(1);
     }
-    N = (long int)pow(2, EXP);
 
-    // Aloca memoria para el vector
-    arrA = (int *) malloc(sizeof(int) * N);
-    if (arrA == NULL)
-    {
-        perror("Failed to allocate memory for arrA");
-        exit(EXIT_FAILURE);
-    }
-
-    arrB = (int *) malloc(sizeof(int) * N);
-    if (arrB == NULL)
-    {
-        perror("Failed to allocate memory for arrB");
-        exit(EXIT_FAILURE);
-    }
-
-    sorted_slicesA = (int **) malloc(sizeof(int *) * NUM_THREADS);
-    if (sorted_slicesA == NULL)
-    {
-        perror("Failed to allocate memory for sorted_slicesA");
-        exit(EXIT_FAILURE);
-    }
-
-    sorted_slicesB = (int **) malloc(sizeof(int *) * NUM_THREADS);
-    if (sorted_slicesB == NULL)
-    {
-        perror("Failed to allocate memory for sorted_slicesB");
-        exit(EXIT_FAILURE);
-    }
-
-    temp_arrs = (int **) malloc(sizeof(int *) * NUM_THREADS);
-    if (temp_arrs == NULL)
-    {
-        perror("Failed to allocate memory for temp_arrs");
-        exit(EXIT_FAILURE);
-    }
-
-    for (i = 0; i < NUM_THREADS; i++)
-    {
-        max_size = N / (1 << (int)ceil(log2(i + 1)));
-
-        sorted_slicesA[i] = (int *) malloc(sizeof(int) * max_size);
-        if (sorted_slicesA[i] == NULL)
-        {
-            perror("Failed to allocate memory for sorted_slicesA[i]");
-            exit(EXIT_FAILURE);
-        }
-
-        sorted_slicesB[i] = (int *) malloc(sizeof(int) * max_size);
-        if (sorted_slicesB[i] == NULL)
-        {
-            perror("Failed to allocate memory for sorted_slicesB[i]");
-            exit(EXIT_FAILURE);
-        }
-
-        temp_arrs[i] = (int *) malloc(sizeof(int) * max_size);
-        if (temp_arrs[i] == NULL)
-        {
-            perror("Failed to allocate memory for temp_arrs[i]");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    cant_barrs = NUM_THREADS - 1;
-    merge_barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
-    if (merge_barriers == NULL)
-    {
-        perror("Failed to allocate memory for barriers");
-        exit(EXIT_FAILURE);
-    }
-    for (i = 0; i < cant_barrs; i++)
-    {
-        pthread_barrier_init(&merge_barriers[i], NULL, 2);
-    }
-    pthread_barrier_init(&cmp_barrier, NULL, NUM_THREADS);
-
-    // Inicializa el vector con valores aleatorios
-    srand(time(NULL));
-    for (i = 0; i < N; i++)
-    {
-        arrA[i] = rand() % 1000;
-        arrB[i] = rand() % 1000;
-    }
+    init();
 
 #if DEBUG != 0
     printf("Given arrA is \n");
@@ -271,7 +189,103 @@ int main(int argc, char *argv[])
         printf("Sort B went wrong:(\n");
     }
 
-    for (i = 0; i < cant_barrs; i++)
+    dispose();
+    return (0);
+}
+
+void init()
+{
+    N = (long int)pow(2, EXP);
+
+    // Aloca memoria para el vector
+    arrA = (int *) malloc(sizeof(int) * N);
+    if (arrA == NULL)
+    {
+        perror("Failed to allocate memory for arrA");
+        exit(EXIT_FAILURE);
+    }
+
+    arrB = (int *) malloc(sizeof(int) * N);
+    if (arrB == NULL)
+    {
+        perror("Failed to allocate memory for arrB");
+        exit(EXIT_FAILURE);
+    }
+
+    sorted_slicesA = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (sorted_slicesA == NULL)
+    {
+        perror("Failed to allocate memory for sorted_slicesA");
+        exit(EXIT_FAILURE);
+    }
+
+    sorted_slicesB = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (sorted_slicesB == NULL)
+    {
+        perror("Failed to allocate memory for sorted_slicesB");
+        exit(EXIT_FAILURE);
+    }
+
+    temp_arrs = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (temp_arrs == NULL)
+    {
+        perror("Failed to allocate memory for temp_arrs");
+        exit(EXIT_FAILURE);
+    }
+
+    long int i;
+    long int max_size;
+    for (i = 0; i < NUM_THREADS; i++)
+    {
+        max_size = N / (1 << (int)ceil(log2(i + 1)));
+
+        sorted_slicesA[i] = (int *) malloc(sizeof(int) * max_size);
+        if (sorted_slicesA[i] == NULL)
+        {
+            perror("Failed to allocate memory for sorted_slicesA[i]");
+            exit(EXIT_FAILURE);
+        }
+
+        sorted_slicesB[i] = (int *) malloc(sizeof(int) * max_size);
+        if (sorted_slicesB[i] == NULL)
+        {
+            perror("Failed to allocate memory for sorted_slicesB[i]");
+            exit(EXIT_FAILURE);
+        }
+
+        temp_arrs[i] = (int *) malloc(sizeof(int) * max_size);
+        if (temp_arrs[i] == NULL)
+        {
+            perror("Failed to allocate memory for temp_arrs[i]");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    merge_barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * NUM_THREADS - 1);
+    if (merge_barriers == NULL)
+    {
+        perror("Failed to allocate memory for barriers");
+        exit(EXIT_FAILURE);
+    }
+    for (i = 0; i < NUM_THREADS - 1; i++)
+    {
+        pthread_barrier_init(&merge_barriers[i], NULL, 2);
+    }
+    pthread_barrier_init(&cmp_barrier, NULL, NUM_THREADS);
+
+    // Inicializa el vector con valores aleatorios
+    srand(time(NULL));
+    for (i = 0; i < N; i++)
+    {
+        arrA[i] = rand() % 1000;
+        arrB[i] = rand() % 1000;
+    }
+}
+
+void dispose()
+{
+    long int i;
+    for (i = 0; i < NUM_THREADS - 1; i++)
     {
         pthread_barrier_destroy(&merge_barriers[i]);
     }
@@ -290,7 +304,6 @@ int main(int argc, char *argv[])
 
     free(arrA);
     free(arrB);
-    return (0);
 }
 
 // Para calcular tiempo
