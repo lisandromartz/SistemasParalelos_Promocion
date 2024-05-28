@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 // Cantidad de elementos del vector
 long int N;
@@ -16,14 +16,18 @@ int EXP = 10;
 // Cantidad de hilos
 int NUM_THREADS;
 
-// Vector a ordenar
-int *vector;
+int *arrA;
+int *arrB;
 
-int **sorted_arrs;
+int check = 1;
+
+int **sorted_slicesA;
+int **sorted_slicesB;
 int **temp_arrs;
 
 // Variables de sincronizacion
-pthread_barrier_t *barriers;
+pthread_barrier_t *merge_barriers;
+pthread_barrier_t cmp_barrier;
 
 double dwalltime();
 void merge(int *, int *, long int, int *);
@@ -42,46 +46,69 @@ void *funcion(void *arg)
     long int slice = N / NUM_THREADS;
     long int begin = id * slice;
     int barrier_select;
+    int check_slice = 1;
 
     // Copy my respective part of the array
     long int max_size = N / (1 << (int)ceil(log2(id + 1)));
     for (i = 0; i < slice; i++)
     {
-        sorted_arrs[id][i] = vector[begin + i];
+        sorted_slicesA[id][i] = arrA[begin + i];
+        sorted_slicesB[id][i] = arrB[begin + i];
     }
 
     // Order my part of the array
-    mergeSort_iterative(sorted_arrs[id], slice, temp_arrs[id]);
+    mergeSort_iterative(sorted_slicesA[id], slice, temp_arrs[id]);
+    mergeSort_iterative(sorted_slicesB[id], slice, temp_arrs[id]);
 
     barrier_select = id % (merge_threads / 2);
-    pthread_barrier_wait(&barriers[barrier_select]);
+    pthread_barrier_wait(&merge_barriers[barrier_select]);
 
     merge_threads /= 2;
     while (id < merge_threads && merge_threads > 1)
     {
-        // Merge my ordered part with an ordered 'right' part
-        merge(sorted_arrs[id], sorted_arrs[id + merge_threads], slice, temp_arrs[id]);
-
-        slice *= 2;
-        for (i = 0; i < slice; i++)
+        merge(sorted_slicesA[id], sorted_slicesA[id + merge_threads], slice, temp_arrs[id]);
+        for (i = 0; i < slice * 2; i++)
         {
-            sorted_arrs[id][i] = temp_arrs[id][i];
+            sorted_slicesA[id][i] = temp_arrs[id][i];
         }
 
+        merge(sorted_slicesB[id], sorted_slicesB[id + merge_threads], slice, temp_arrs[id]);
+        for (i = 0; i < slice * 2; i++)
+        {
+            sorted_slicesB[id][i] = temp_arrs[id][i];
+        }
+
+        slice *= 2;
+
         barrier_select = (NUM_THREADS - merge_threads) + id % (merge_threads / 2);
-        pthread_barrier_wait(&barriers[barrier_select]);
+        pthread_barrier_wait(&merge_barriers[barrier_select]);
         merge_threads /= 2;
     }
 
     if (id == 0)
     {
-        merge(sorted_arrs[id], sorted_arrs[id + merge_threads], slice, temp_arrs[id]);
-        slice *= 2;
-        for (i = 0; i < slice; i++)
+        merge(sorted_slicesA[id], sorted_slicesA[id + merge_threads], slice, temp_arrs[id]);
+        for (i = 0; i < slice * 2; i++)
         {
-            vector[begin + i] = temp_arrs[id][i];
+            arrA[begin + i] = temp_arrs[id][i];
+        }
+
+        merge(sorted_slicesB[id], sorted_slicesB[id + merge_threads], slice, temp_arrs[id]);
+        for (i = 0; i < slice * 2; i++)
+        {
+            arrB[begin + i] = temp_arrs[id][i];
         }
     }
+
+    // pthread_barrier_wait(&cmp_barrier);
+
+    // slice = N / NUM_THREADS;
+    // i = 0;
+    // while(check_slice)
+    // {
+    //     check_slice = (A[i] == B[i]);
+    //     i++;
+    // }
 
     pthread_exit(NULL);
 }
@@ -92,7 +119,8 @@ int main(int argc, char *argv[])
     int cant_barrs;
     long int max_size;
     double timetick;
-    int check = 1;
+    int checkA = 1;
+    int checkB = 1;
 
     // Controla los argumentos al programa
     if ((argc != 3) || ((EXP = atoi(argv[1])) <= 0) || ((NUM_THREADS = atoi(argv[2])) <= 0))
@@ -103,17 +131,31 @@ int main(int argc, char *argv[])
     N = (long int)pow(2, EXP);
 
     // Aloca memoria para el vector
-    vector = (int *) malloc(sizeof(int) * N);
-    if (vector == NULL)
+    arrA = (int *) malloc(sizeof(int) * N);
+    if (arrA == NULL)
     {
-        perror("Failed to allocate memory for vector");
+        perror("Failed to allocate memory for arrA");
         exit(EXIT_FAILURE);
     }
 
-    sorted_arrs = (int **) malloc(sizeof(int *) * NUM_THREADS);
-    if (sorted_arrs == NULL)
+    arrB = (int *) malloc(sizeof(int) * N);
+    if (arrB == NULL)
     {
-        perror("Failed to allocate memory for sorted_arrs");
+        perror("Failed to allocate memory for arrB");
+        exit(EXIT_FAILURE);
+    }
+
+    sorted_slicesA = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (sorted_slicesA == NULL)
+    {
+        perror("Failed to allocate memory for sorted_slicesA");
+        exit(EXIT_FAILURE);
+    }
+
+    sorted_slicesB = (int **) malloc(sizeof(int *) * NUM_THREADS);
+    if (sorted_slicesB == NULL)
+    {
+        perror("Failed to allocate memory for sorted_slicesB");
         exit(EXIT_FAILURE);
     }
 
@@ -127,12 +169,21 @@ int main(int argc, char *argv[])
     for (i = 0; i < NUM_THREADS; i++)
     {
         max_size = N / (1 << (int)ceil(log2(i + 1)));
-        sorted_arrs[i] = (int *) malloc(sizeof(int) * max_size);
-        if (sorted_arrs[i] == NULL)
+
+        sorted_slicesA[i] = (int *) malloc(sizeof(int) * max_size);
+        if (sorted_slicesA[i] == NULL)
         {
-            perror("Failed to allocate memory for sorted_arrs[i]");
+            perror("Failed to allocate memory for sorted_slicesA[i]");
             exit(EXIT_FAILURE);
         }
+
+        sorted_slicesB[i] = (int *) malloc(sizeof(int) * max_size);
+        if (sorted_slicesB[i] == NULL)
+        {
+            perror("Failed to allocate memory for sorted_slicesB[i]");
+            exit(EXIT_FAILURE);
+        }
+
         temp_arrs[i] = (int *) malloc(sizeof(int) * max_size);
         if (temp_arrs[i] == NULL)
         {
@@ -142,27 +193,31 @@ int main(int argc, char *argv[])
     }
 
     cant_barrs = NUM_THREADS - 1;
-    barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
-    if (barriers == NULL)
+    merge_barriers = (pthread_barrier_t *) malloc(sizeof(pthread_barrier_t) * cant_barrs);
+    if (merge_barriers == NULL)
     {
         perror("Failed to allocate memory for barriers");
         exit(EXIT_FAILURE);
     }
     for (i = 0; i < cant_barrs; i++)
     {
-        pthread_barrier_init(&barriers[i], NULL, 2);
+        pthread_barrier_init(&merge_barriers[i], NULL, 2);
     }
+    pthread_barrier_init(&cmp_barrier, NULL, NUM_THREADS);
 
     // Inicializa el vector con valores aleatorios
     srand(time(NULL));
     for (i = 0; i < N; i++)
     {
-        vector[i] = rand() % 100;
+        arrA[i] = rand() % 1000;
+        arrB[i] = rand() % 1000;
     }
 
 #if DEBUG != 0
-    printf("Given array is \n");
-    printArray(vector, N);
+    printf("Given arrA is \n");
+    printArray(arrA, N);
+    printf("\nGiven arrB is \n");
+    printArray(arrB, N);
 #endif
 
     pthread_t misThreads[NUM_THREADS];
@@ -187,38 +242,54 @@ int main(int argc, char *argv[])
     // Verifica el resultado
     for (i = 0; i < N - 1; i++)
     {
-        check = check && (vector[i] <= vector[i + 1]);
+        checkA = checkA && (arrA[i] <= arrA[i + 1]);
+        checkB = checkB && (arrB[i] <= arrB[i + 1]);
     }
 
 #if DEBUG != 0
-    printf("\nSorted array is \n");
-    printArray(vector, N);
+    printf("\nSorted arrA is \n");
+    printArray(arrA, N);
+    printf("\nSorted arrB is \n");
+    printArray(arrB, N);
 #endif
 
-    if (check)
+    if (checkA)
     {
-        printf("Success!!\n");
+        printf("Success A!!\n");
     }
     else
     {
-        printf("Sort went wrong:(\n");
+        printf("Sort A went wrong:(\n");
+    }
+
+    if (checkB)
+    {
+        printf("Success B!!\n");
+    }
+    else
+    {
+        printf("Sort B went wrong:(\n");
     }
 
     for (i = 0; i < cant_barrs; i++)
     {
-        pthread_barrier_destroy(&barriers[i]);
+        pthread_barrier_destroy(&merge_barriers[i]);
     }
-    free(barriers);
+    free(merge_barriers);
+    pthread_barrier_destroy(&cmp_barrier);
 
     for (i = 0; i < NUM_THREADS; i++)
     {
-        free(sorted_arrs[i]);
+        free(sorted_slicesA[i]);
+        free(sorted_slicesB[i]);
         free(temp_arrs[i]);
     }
-    free(sorted_arrs);
+    free(sorted_slicesA);
+    free(sorted_slicesB);
     free(temp_arrs);
 
-    free(vector);
+    free(arrA);
+    free(arrB);
     return (0);
 }
 
