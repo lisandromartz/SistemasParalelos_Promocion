@@ -5,8 +5,8 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define DEBUG 1
-#define SHUFFLE_EQUAL 1
+#define DEBUG 0
+#define SHUFFLE_EQUAL 0
 
 // Cantidad de elementos del vector
 unsigned long int N;

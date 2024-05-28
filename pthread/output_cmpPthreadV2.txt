@@ -1,0 +1,33 @@
+*** NOT EQUAL ***
+ARGS: 24 8
+Time in secs 1.915339
+The arrays are NOT equal
+
+ARGS: 25 8
+Time in secs 4.033259
+The arrays are NOT equal
+
+ARGS: 26 8
+Time in secs 8.644630
+The arrays are NOT equal
+
+ARGS: 27 8
+Time in secs 17.872076
+The arrays are NOT equal
+
+*** EQUAL ***
+ARGS: 24 8
+Time in secs 1.929432
+The arrays are equal
+
+ARGS: 25 8
+Time in secs 4.042607
+The arrays are equal
+
+ARGS: 26 8
+Time in secs 8.660309
+The arrays are equal
+
+ARGS: 27 8
+Time in secs 17.999628
+The arrays are equal
