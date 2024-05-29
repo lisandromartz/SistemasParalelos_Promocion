@@ -57,16 +57,16 @@ void *funcion(void *arg)
     pthread_barrier_wait(&barriers[barrier_select]);
 
     merge_threads /= 2;
+    int *aux;
     while (id < merge_threads && merge_threads > 1)
     {
         // Merge my ordered part with an ordered 'right' part
         merge(sorted_arrs[id], sorted_arrs[id + merge_threads], slice, temp_arrs[id]);
 
         slice *= 2;
-        for (i = 0; i < slice; i++)
-        {
-            sorted_arrs[id][i] = temp_arrs[id][i];
-        }
+        aux = sorted_arrs[id];
+        sorted_arrs[id] = temp_arrs[id];
+        temp_arrs[id] = aux;
 
         barrier_select = (NUM_THREADS - merge_threads) + id % (merge_threads / 2);
         pthread_barrier_wait(&barriers[barrier_select]);
@@ -77,10 +77,9 @@ void *funcion(void *arg)
     {
         merge(sorted_arrs[id], sorted_arrs[id + merge_threads], slice, temp_arrs[id]);
         slice *= 2;
-        for (i = 0; i < slice; i++)
-        {
-            vector[begin + i] = temp_arrs[id][i];
-        }
+        aux = vector;
+        vector = temp_arrs[id];
+        temp_arrs[id] = aux;
     }
 
     pthread_exit(NULL);

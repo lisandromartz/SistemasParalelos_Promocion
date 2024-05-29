@@ -6,7 +6,7 @@
 #include <math.h>
 
 #define DEBUG 0
-#define SHUFFLE_EQUAL 0
+#define SHUFFLE_EQUAL 1
 
 // Cantidad de elementos del vector
 unsigned long int N;
@@ -67,20 +67,19 @@ void *funcion(void *arg)
     barrier_select = id % (merge_threads / 2);
     pthread_barrier_wait(&merge_barriers[barrier_select]);
 
+    int *aux;
     merge_threads /= 2;
     while (id < merge_threads && merge_threads > 1)
     {
         merge(sorted_slicesA[id], sorted_slicesA[id + merge_threads], slice, temp_arrs[id]);
-        for (i = 0; i < slice * 2; i++)
-        {
-            sorted_slicesA[id][i] = temp_arrs[id][i];
-        }
+        aux = sorted_slicesA[id];
+        sorted_slicesA[id] = temp_arrs[id];
+        temp_arrs[id] = aux;
 
         merge(sorted_slicesB[id], sorted_slicesB[id + merge_threads], slice, temp_arrs[id]);
-        for (i = 0; i < slice * 2; i++)
-        {
-            sorted_slicesB[id][i] = temp_arrs[id][i];
-        }
+        aux = sorted_slicesB[id];
+        sorted_slicesB[id] = temp_arrs[id];
+        temp_arrs[id] = aux;
 
         slice *= 2;
 
@@ -92,23 +91,21 @@ void *funcion(void *arg)
     if (id == 0)
     {
         merge(sorted_slicesA[id], sorted_slicesA[id + merge_threads], slice, temp_arrs[id]);
-        for (i = 0; i < slice * 2; i++)
-        {
-            arrA[begin + i] = temp_arrs[id][i];
-        }
+        aux = arrA;
+        arrA = temp_arrs[id];
+        temp_arrs[id] = aux;
 
         merge(sorted_slicesB[id], sorted_slicesB[id + merge_threads], slice, temp_arrs[id]);
-        for (i = 0; i < slice * 2; i++)
-        {
-            arrB[begin + i] = temp_arrs[id][i];
-        }
+        aux = arrB;
+        arrB = temp_arrs[id];
+        temp_arrs[id] = aux;
     }
 
     pthread_barrier_wait(&cmp_barrier);
 
     slice = N / NUM_THREADS;
     i = 0;
-    while(check && check_slice && i < slice)
+    while(check_slice && i < slice)
     {
         check_slice = (arrA[begin + i] == arrB[begin + i]);
         i++;
