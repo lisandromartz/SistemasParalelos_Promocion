@@ -4,7 +4,7 @@
 #include <math.h>
 #include <mpi.h>
 
-#define PRINT 1
+#define PRINT 0
 
 #define TRUE 1
 #define FALSE 0
@@ -40,11 +40,9 @@ void initRoot(long N, int** A, int** B){
 	}
 }
 
-void initAll(long N, long parte, int** parteArr, int** parteArr2){
+void initAll(long N, int** parteArr, int** aux){
 	*parteArr = (int*)malloc(sizeof(int)*N);
-	*parteArr2 = (int*)malloc(sizeof(int)*parte);
-	//parteA = (int*)malloc(sizeof(int)*N);
-	//parteB = (int*)malloc(sizeof(int)*N);
+    *aux = (int*)malloc(sizeof(int)*N);
 }
 
 // Se unen los arreglos en uno solo ordenado
@@ -71,7 +69,7 @@ void merge(int *L, int *R, long parte, int *result) {
 }
 
 // Merge sort iterativo
-void mergeSortIterativo(int* arr, long N, int *temp) {
+void mergeSortIterativo(int* parteArr, long N, int *aux) {
 
     for (long parte = 1; parte <= N-1; parte = 2*parte) {
         for (long inicio = 0; inicio < N-1; inicio += 2*parte) {
@@ -82,11 +80,11 @@ void mergeSortIterativo(int* arr, long N, int *temp) {
             // Llamada al merge enviando como parámetro punteros al inicio de las dos mitades
             // Se guarda el arreglo ordenado en temp
 
-            merge(arr + inicio, arr + medio + 1, parte, temp + inicio);
+            merge(parteArr + inicio, parteArr + medio + 1, parte, aux + inicio);
             
             // Se copia el arreglo temp ordenado en arr
             for (long i = inicio; i <= fin; i++) {
-                arr[i] = temp[i];
+                parteArr[i] = aux[i];
             }
         }
     }
@@ -94,7 +92,7 @@ void mergeSortIterativo(int* arr, long N, int *temp) {
 
 // Cuando los procesos terminan de ordenar las partes, los de la mitad
 // superior las envían a los de la inferior para que estas las ordenen
-void mergeArray(int id, int numProce, int* arr, long N, int* recAux, int* temp) {
+void mergeArray(int id, int numProce, int* parteArr, long N, int* aux) {
 	int procesosActivos = numProce;
     long parte = N/numProce;
 	//int inicio = 0;
@@ -105,8 +103,9 @@ void mergeArray(int id, int numProce, int* arr, long N, int* recAux, int* temp) 
 		procesosActivos = procesosActivos/2;
 
 		if(id < procesosActivos) {
+            printf("ID: %d\nParte: %ld\nProcesos activos: %d\n", id, parte, procesosActivos);
 			// Los procesos que permanecen reciben los arreglos ordenados de los que finalizan
-			MPI_Recv(recAux, parte, MPI_INT,id+procesosActivos,parte, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(parteArr + parte, parte, MPI_INT,id+procesosActivos,parte, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			/*
             for(int i=0;i<parte;i++) {
 				arr[parte+i] = recAux[i];
@@ -115,18 +114,31 @@ void mergeArray(int id, int numProce, int* arr, long N, int* recAux, int* temp) 
 			// Se duplica el tamaño de las partes y se definen un nuevo fin y medio
 			//fin = parte - 1;
 			//medio = inicio + (fin - inicio)/2;
-			merge(arr, recAux, parte, temp);
+            #if PRINT == 1
+                printf("parteArr NO ordenada\n");
+    		    printArreglo(parteArr, parte);
+    	    #endif
+			merge(parteArr, parteArr + parte, parte, aux);
+            int* aux2 = parteArr;
+            parteArr = aux;
+            aux = aux2;
             parte = parte*2;
+            #if PRINT == 1
+				printf("mergeArray\n");
+                printf("parteArr ordenada\n");
+    		    printArreglo(parteArr, parte);
+				//printf("Punteros\n");
+				//printf("parteArr: %d\n", parteArr);
+				//printf("aux: %d\n", aux);
+                printf("\n");
+		    #endif
 		} else {
 			// Los procesos de la mitad superior de cada ciclo envían su parte a uno de la mitad inferior
-			MPI_Send(arr, parte, MPI_INT,id-procesosActivos,parte, MPI_COMM_WORLD);
+			MPI_Send(parteArr, parte, MPI_INT,id-procesosActivos,parte, MPI_COMM_WORLD);
 			break;
 		}
-        
-        // Se copia el arreglo temp ordenado en arr
-        for (long i = 0; i < N; i++) {
-            arr[i] = temp[i];
-        }
+
+        aux = parteArr;
 	}
 }
 
@@ -144,8 +156,8 @@ int main(int argc, char* argv[]){
 	int numProce;
 	
 	int *A = NULL, *B = NULL;
-	int *parteArr = NULL, *parteArr2 = NULL;
-	long parte;
+	int *parteArr, *aux = NULL;
+	long N, parte;
 	int check = TRUE;
 	double timetick;
 	char *ptrFin;
@@ -157,7 +169,7 @@ int main(int argc, char* argv[]){
 	// Se obtiene el número de procesos en ejecución, se guarda en 'numProce'
 	MPI_Comm_size(MPI_COMM_WORLD, &numProce);
 
-	long N = strtol(argv[1], &ptrFin, 10);
+	N = strtol(argv[1], &ptrFin, 10);
 	//long N = (long) pow(2, atoi(argv[1]));
 	
 	if(*ptrFin != '\0')
@@ -174,16 +186,21 @@ int main(int argc, char* argv[]){
             printf("Alocación de B fallada");
             exit(EXIT_FAILURE);
         }
+        #if PRINT == 1
+            printf("Arreglos creados\n");
+    		printArreglo(A, N);
+			printArreglo(B, N);
+		#endif
 	}
 	
 	//Alocación de memoria para el arreglo auxiliar
-	initAll(N, parte, &parteArr, &parteArr2);
+	initAll(N, &aux, &parteArr);
 
-	int *temp = (int*)malloc(sizeof(int)*N);
-	int *recAux = (int*)malloc(sizeof(int)*N/2);
+	//int *temp = (int*)malloc(sizeof(int)*N);
+	//int *recAux = (int*)malloc(sizeof(int)*N/2);
 	
 	parte = N/numProce;
-	if(parteArr == NULL) {
+	if(aux == NULL) {
         printf("Alocación de parteArr fallada");
         exit(EXIT_FAILURE);
     }
@@ -193,28 +210,50 @@ int main(int argc, char* argv[]){
 
 	// Distribución de A entre los procesos
 	MPI_Scatter(A, parte, MPI_INT, parteArr, parte, MPI_INT, 0, MPI_COMM_WORLD);
-	mergeSortIterativo(parteArr, parte, temp);
-	mergeArray(id, numProce, parteArr, N, recAux, temp);
+	mergeSortIterativo(parteArr, parte, aux);
+	mergeArray(id, numProce, parteArr, N, aux);
+
+	A = aux;
+	/*
 	if(id==0) {
 		for(int i=0;i<N;i++) {
-			A[i] = parteArr[i];
+			A[i] = aux[i];
 		}
 	}
+	*/
+
+    if(id == 0) {
+        #if PRINT == 1
+			printf("main\n");
+            printf("Arreglos ordenados\n");
+    		printArreglo(aux, N);
+            printArreglo(A, N);
+			//printf("Punteros\n");
+			//printf("parteArr: %d\n", parteArr);
+			//printf("aux: %d\n", aux);
+            printf("\n");
+		#endif
+    }
 	
 	// Distribución de B entre los procesos
 	MPI_Scatter(B, parte, MPI_INT, parteArr, parte, MPI_INT, 0, MPI_COMM_WORLD);
-	mergeSortIterativo(parteArr, parte, temp);
-	mergeArray(id, numProce, parteArr, N, recAux, temp);
+	mergeSortIterativo(parteArr, parte, aux);
+	mergeArray(id, numProce, parteArr, N, aux);
+	
+	B = aux;
+
+	/*
 	if(id==0) {
 		for(int i=0;i<N;i++) {
-			B[i] = parteArr[i];
+			B[i] = aux[i];
 		}
 	}
+	*/
 
 	MPI_Scatter(A, parte, MPI_INT, parteArr, parte, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Scatter(B, parte, MPI_INT, parteArr2, parte, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Scatter(B, parte, MPI_INT, aux, parte, MPI_INT, 0, MPI_COMM_WORLD);
 
-	check = comparacion(parteArr, parteArr2, parte);
+	check = comparacion(parteArr, aux, parte);
     
 	if(check == FALSE) {
 		MPI_Allreduce(MPI_IN_PLACE, &check, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
@@ -236,12 +275,10 @@ int main(int argc, char* argv[]){
 
 	if(id == 0) {
 		free(A);
-		free(B);
+		//free(B);
 	}
 	free(parteArr);
-	free(parteArr2);
-	free(temp);
-	free(recAux);
+	//free(aux);
 
 	MPI_Finalize();
 	return(0);
