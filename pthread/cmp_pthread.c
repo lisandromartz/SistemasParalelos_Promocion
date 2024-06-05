@@ -5,7 +5,20 @@
 #include <sys/time.h>
 #include <math.h>
 
+/*	NOTA: En lugar de recibir por parametros el tamaño N del arreglo cuando se
+	lanza el ejecutable, se recibe el parametro EXP que es la potencia de 2 que
+	se usara para determinar el tamaño del arreglo */
+
+/*	DEBUG en 1 activa la comprobación de ordenación de ambos arreglos y la
+	impresion en pantalla de los arreglos antes y después de ser ordenados */
 #define DEBUG 0
+
+/*	SHUFFLE_EQUAL en 1 hace que ambos arreglos tengan los mismos elementos
+	pero en distinto orden
+	SHUFFLE_EQUAL en 0 hace que ambos arreglos inicializen sus elementos con
+	valores aleatorios de manera separada (por lo cual, lo más probable es 
+	que terminen con valores distintos)
+ */
 #define SHUFFLE_EQUAL 1
 
 // Cantidad de elementos del vector
@@ -52,7 +65,7 @@ void *funcion(void *arg)
     unsigned int barrier_select;
     int check_slice = 1;
 
-    // Copy my respective part of the array
+    // Copiar las partes de cada arreglo asignadas a este hilo
     unsigned long int max_size = N / (1 << (int)ceil(log2(id + 1)));
     for (i = 0; i < slice; i++)
     {
@@ -60,17 +73,20 @@ void *funcion(void *arg)
         sorted_slicesB[id][i] = arrB[begin + i];
     }
 
-    // Order my part of the array
+    // Ordenar las partes de este hilo
     mergeSort_iterative(sorted_slicesA[id], slice, temp_arrs[id]);
     mergeSort_iterative(sorted_slicesB[id], slice, temp_arrs[id]);
 
+    // Sincronizar con hilo de la mitad inferior/superior
     barrier_select = id % (merge_threads / 2);
     pthread_barrier_wait(&merge_barriers[barrier_select]);
 
     int *aux;
     merge_threads /= 2;
+    // Continuar si soy un hilo de la mitad inferior
     while (id < merge_threads && merge_threads > 1)
     {
+        // Mezclar las partes de este hilo con las del hilo superior
         merge(sorted_slicesA[id], sorted_slicesA[id + merge_threads], slice, temp_arrs[id]);
         aux = sorted_slicesA[id];
         sorted_slicesA[id] = temp_arrs[id];
@@ -83,6 +99,7 @@ void *funcion(void *arg)
 
         slice *= 2;
 
+        // Sincronizar con hilo de la mitad inferior/superior
         barrier_select = (NUM_THREADS - merge_threads) + id % (merge_threads / 2);
         pthread_barrier_wait(&merge_barriers[barrier_select]);
         merge_threads /= 2;
@@ -103,6 +120,7 @@ void *funcion(void *arg)
 
     pthread_barrier_wait(&cmp_barrier);
 
+    // Realizar igualdad entre secciones
     slice = N / NUM_THREADS;
     i = 0;
     while(check_slice && i < slice)
@@ -136,9 +154,9 @@ int main(int argc, char *argv[])
     init();
 
 #if DEBUG != 0
-    printf("Given arrA is \n");
+    printf("Array arrA es \n");
     printArray(arrA, N);
-    printf("\nGiven arrB is \n");
+    printf("\nArray arrB es \n");
     printArray(arrB, N);
 #endif
 
@@ -159,7 +177,7 @@ int main(int argc, char *argv[])
         pthread_join(misThreads[i], NULL);
     }
 
-    printf("\nTime in secs %f\n", dwalltime() - timetick);
+    printf("\nTiempo en segundos %f\n", dwalltime() - timetick);
 
     // Verifica el resultado
 #if DEBUG != 0
@@ -169,37 +187,37 @@ int main(int argc, char *argv[])
         check_sortB = check_sortB && (arrB[i] <= arrB[i + 1]);
     }
 
-    printf("\nSorted arrA is \n");
+    printf("\nArray arrA ordenado es \n");
     printArray(arrA, N);
-    printf("\nSorted arrB is \n");
+    printf("\nArray arrB ordenado es \n");
     printArray(arrB, N);
 
 
     if (check_sortA)
     {
-        printf("Success in sort A!!\n");
+        printf("El arreglo arrA fue ordenado correctamente\n");
     }
     else
     {
-        printf("Sort A went wrong:(\n");
+        printf("El arreglo arrA NO fue ordenado correctamente\n");
     }
 
     if (check_sortB)
     {
-        printf("Success in sort B!!\n");
+        printf("El arreglo arrB fue ordenado correctamente\n");
     }
     else
     {
-        printf("Sort B went wrong:(\n");
+        printf("El arreglo arrB NO fue ordenado correctamente\n");
     }
 #endif
     if(check)
     {
-        printf("The arrays are equal");
+        printf("Los arreglos tienen los mismos elementos\n");
     }
     else
     {
-        printf("The arrays are NOT equal");
+        printf("Los arreglos son diferentes\n");
     }
 
     dispose();
@@ -286,7 +304,7 @@ void init()
     }
     pthread_barrier_init(&cmp_barrier, NULL, NUM_THREADS);
 
-    // Inicializa el vector con valores aleatorios
+    // Inicializa los arreglos con valores aleatorios
     srand(time(NULL));
     for (i = 0; i < N; i++)
     {
@@ -338,6 +356,7 @@ double dwalltime()
     return sec;
 }
 
+// Funcion para mezclar los elementos de un arreglo
 void shuffle(int *arr, unsigned long int size)
 {
     int aux;
@@ -355,34 +374,34 @@ void shuffle(int *arr, unsigned long int size)
     }
 }
 
-// Function to merge two sorted arrays of the same size into a single sorted array
-void merge(int *arr1, int *arr2, unsigned long int size, int *result)
+// Funcion para mezclar para mezclar 2 arreglos ordenados del mismo tamaño en un solo arreglo ordenado
+void merge(int *L, int *R, unsigned long int size, int *result)
 {
     unsigned long int i = 0, j = 0, k = 0;
 
-    // Merge the two arrays into result
+    // Mezclar los dos arreglos en result
     while (i < size && j < size)
     {
-        if (arr1[i] <= arr2[j])
+        if (L[i] <= R[j])
         {
-            result[k++] = arr1[i++];
+            result[k++] = L[i++];
         }
         else
         {
-            result[k++] = arr2[j++];
+            result[k++] = R[j++];
         }
     }
 
-    // Copy the remaining elements of arr1, if any
+    // Copiar los elementos remanentes en L, si hay alguno
     while (i < size)
     {
-        result[k++] = arr1[i++];
+        result[k++] = L[i++];
     }
 
-    // Copy the remaining elements of arr2, if any
+    // Copiar los elementos remanentes en R, si hay alguno
     while (j < size)
     {
-        result[k++] = arr2[j++];
+        result[k++] = R[j++];
     }
 }
 
@@ -399,10 +418,10 @@ void mergeSort_iterative(int *arr, unsigned long int n, int *temp)
             mid = left_start + curr_size - 1;
             right_end = (left_start + 2 * curr_size - 1 < n - 1) ? (left_start + 2 * curr_size - 1) : (n - 1);
 
-            // Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
+            // Mezcla subarreglos arr[left_start..mid] y arr[mid+1..right_end]
             merge(arr + left_start, arr + mid + 1, curr_size, temp + left_start);
 
-            // Copy the merged subarray back to the original array
+            // Copiar el subarray obtenido en el arreglo original
             for (i = left_start; i <= right_end; i++)
             {
                 arr[i] = temp[i];
@@ -411,7 +430,7 @@ void mergeSort_iterative(int *arr, unsigned long int n, int *temp)
     }
 }
 
-// Function to print an array
+// Funcion para imprimir un arreglo
 void printArray(int *data, unsigned long int size)
 {
     for (unsigned long int i = 0; i < size; i++)

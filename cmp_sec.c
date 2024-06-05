@@ -4,7 +4,20 @@
 #include <stdbool.h>
 #include <math.h>
 
+/*	NOTA: En lugar de recibir por parametros el tamaño N del arreglo cuando se
+	lanza el ejecutable, se recibe el parametro EXP que es la potencia de 2 que
+	se usara para determinar el tamaño del arreglo */
+
+/*	DEBUG en 1 activa la comprobación de ordenación de ambos arreglos y la
+	impresion en pantalla de los arreglos antes y después de ser ordenados */
 #define DEBUG 0
+
+/*	SHUFFLE_EQUAL en 1 hace que ambos arreglos tengan los mismos elementos
+	pero en distinto orden
+	SHUFFLE_EQUAL en 0 hace que ambos arreglos inicializen sus elementos con
+	valores aleatorios de manera separada (por lo cual, lo más probable es 
+	que terminen con valores distintos)
+ */
 #define SHUFFLE_EQUAL 1
 
 // Para calcular tiempo
@@ -18,7 +31,7 @@ double dwalltime()
 	return sec;
 }
 
-// Function to print an array
+// Funcion para imprimir un arreglo
 void printArray(int *data, unsigned long int size)
 {
 	for (unsigned long int i = 0; i < size; i++)
@@ -26,7 +39,7 @@ void printArray(int *data, unsigned long int size)
 	printf("\n");
 }
 
-// Function to shuffle the elements of an array
+// Funcion para mezclar los elementos de un arreglo
 void shuffle(int *arr, unsigned long int size)
 {
 	int aux;
@@ -44,12 +57,12 @@ void shuffle(int *arr, unsigned long int size)
 	}
 }
 
-// Function to merge two sorted arrays of the same size into a single sorted array
+// Funcion para mezclar para mezclar 2 arreglos ordenados del mismo tamaño en un solo arreglo ordenado
 void merge(int *L, int *R, unsigned long int size, int *result)
 {
 	unsigned long int i = 0, j = 0, k = 0;
 
-	// Merge the two arrays into result
+	// Mezclar los dos arreglos en result
 	while (i < size && j < size)
 	{
 		if (L[i] <= R[j])
@@ -62,20 +75,20 @@ void merge(int *L, int *R, unsigned long int size, int *result)
 		}
 	}
 
-	// Copy the remaining elements of L, if any
+	// Copiar los elementos remanentes en L, si hay alguno
 	while (i < size)
 	{
 		result[k++] = L[i++];
 	}
 
-	// Copy the remaining elements of R, if any
+	// Copiar los elementos remanentes en R, si hay alguno
 	while (j < size)
 	{
 		result[k++] = R[j++];
 	}
 }
 
-// Iterative merge sort function
+// Funcion de Merge Sort Iterativo
 void mergeSort_iterative(int *arr, unsigned long int n, int *temp)
 {
 	unsigned long int curr_size;
@@ -88,10 +101,10 @@ void mergeSort_iterative(int *arr, unsigned long int n, int *temp)
 			mid = left_start + curr_size - 1;
 			right_end = (left_start + 2 * curr_size - 1 < n - 1) ? (left_start + 2 * curr_size - 1) : (n - 1);
 
-			// Merge subarrays arr[left_start..mid] and arr[mid+1..right_end]
+			// Mezcla subarreglos arr[left_start..mid] y arr[mid+1..right_end]
 			merge(arr + left_start, arr + mid + 1, curr_size, temp + left_start);
 
-			// Copy the merged subarray back to the original array
+			// Copiar el subarray obtenido en el arreglo original
 			for (i = left_start; i <= right_end; i++)
 			{
 				arr[i] = temp[i];
@@ -126,6 +139,7 @@ int main(int argc, char *argv[])
 	// Se reserva memoria para los arreglos auxiliares
 	temp = (int *)malloc(sizeof(int) * N);
 
+	// Se inicializan los arreglos de manera aleatoria
 	srand(time(NULL));
 	for (int i = 0; i < N; i++)
 	{
@@ -142,7 +156,9 @@ int main(int argc, char *argv[])
 #endif
 
 #if DEBUG != 0
+	printf("Array A es \n");
 	printArray(A, N);
+	printf("\nArray B es \n");
 	printArray(B, N);
 #endif
 
@@ -158,10 +174,12 @@ int main(int argc, char *argv[])
 		break;
 	}
 
-	printf("Tiempo en segundos %f\n", dwalltime() - timetick);
+	printf("\nTiempo en segundos %f\n", dwalltime() - timetick);
 
 #if DEBUG != 0
+	printf("\nArray A ordenado es \n");
 	printArray(A, N);
+	printf("\nArray B ordenado es \n");
 	printArray(B, N);
 
 	int check_sortA = true;
